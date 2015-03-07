@@ -1,0 +1,323 @@
+\documentclass{puthesis}
+\usepackage{latexsym}
+\usepackage{graphicx}
+\usepackage{url}       % SB
+\usepackage{algorithmic}
+\usepackage{algorithm}
+\usepackage{times}
+\usepackage{xcolor}
+\usepackage{textcomp}
+\usepackage{mathpartir}
+\usepackage{semantic}
+\usepackage{listings}
+\usepackage{lstlangcoq}
+\usepackage{caption}
+\usepackage{stmaryrd}
+\renewcommand{\lstlistingname}{Figure}
+\input{macros}
+
+\lstset{language=Coq,basicstyle=\sffamily,mathescape=true,columns=fullflexible}
+
+
+
+\author{Josiah Dodds}
+\adviser{Andrew Appel}
+\title{Computation Improves Interactive Symbolic Execution}
+\abstract{The abstract goes here.}
+\acknowledgements{Thank you very much.}
+\dedication{To myself.}
+
+
+
+\begin{document}
+
+
+
+\chapter{Introduction}
+
+\chapter{Computation in Coq}
+
+\chapter{Typechecking C Expressions}
+think about if there is more that needs to be explained
+
+\chapter{Canonical Forms for Assertions}
+
+VST uses assertions to reason about programs, but what does 
+it require about the form of these assertions? This chapter
+discusses that, as well as how restricting the form of
+assertions improve both the usability and the performance
+of symbolic execution.
+
+\section{Semi-Canonical Form}
+
+We previously described \cite{appel14:plcc} assertions in the form
+~~\lstinline{PROP  $~P$ LOCAL  $~Q$ SEP  $~R$}. 
+Here each item in \lstinline|$P$:list prop| is a pure assertion that 
+doesn't refer to the program state. \lstinline|$Q$: list (environ -> prop)|
+contains assertions that can reason about local variables. 
+and \lstinline|$R$: list (environ -> mpred)| has spatial assertions that
+can reason about both local variables and memory. 
+$\PROP$ folds conjunction over the elements of $P$, $\LOCAL$
+folds lifted conjunction (
+\lstinline|`and : (environ -> Prop)-> (environ -> Prop) -> (environ -> Prop))|,
+and $\SEP$ folds the separation logic \lstinline|*|, or separating conjunction
+operator. $P$, $Q$, and $R$, are represented as lists because, particularly 
+in the case of $\SEP$, it is often convenient to refer to the $n$th 
+conjunct. This is much easier to implement when our assertion is a list. 
+We say that assertions in this form are in semi-canonical form. 
+
+At the lowest level, the Verifiable C 
+logic rules are completely unaware of any
+sort of canonical form. They generally refer to assertions as single
+variables, using entailments to constrain them rather than imposing
+syntactic requirements on them. The Floyd automation system contains
+higher level lemmas that require assertions to be in semi-canonical
+form, but also guarantee that the side conditions that result from
+using the rules will be in semi-canonical form. 
+
+\subsection{Substitution in semi-canonical form}
+
+At the Verifiable C level, there is no choice but to use a semantic
+notion of substitution called 
+\lstinline|subst {A: Type} (x : ident) (v:val) (P : environ -> A) : environ -> A|.
+This is because we know nothing about the assertion at all, only that
+it takes an environment and returns an \lstinline|mpred|. The following example
+shows how \lstinline|subst| is used:
+
+\begin{lstlisting}
+$\inference[semax\_set\_forward]{}{
+\Delta\vdash\triple{\later P}{~x:=e~}{\exists v.\,x=(e[v/x])\wedge P[v/x]}
+}$
+
+Axiom semax_set_forward: $~~$forall $\Delta$ ($P$: environ->mpred) ($x$: ident) ($e$: expr),
+  semax $\Delta$
+    (|> (local (tc_expr $\Delta$ $e$) && local (tc_temp_id id (typeof $e$) $\Delta$ $e$) && $P$))
+    (Sset $x$ $e$) 
+    (normal_ret_assert 
+      (EX old:val, local (`eq (eval_id $x$) (subst $x$ (`old) (eval_expr $e$)))
+                    && subst $x$ (`old) $P$)).
+\end{lstlisting}
+
+There are two substitutions here, used to replace any occurences of the
+variable \lstinline|x| that might have occured in either the precondition
+or the expression being assigned into \lstinline|x|. 
+Although subst is a function, in practice it can never be computed.
+This is becuase it works by updating the environment that $P$
+refers to. During symbolic execution, however, the environment is always
+abstract, constrained only by the precondition, which means there is
+no datastructure to be updated. This means that the definition of 
+\lstinline|subst| that appears in Verifiable C isn't directly 
+useful to proof automation. It can't compute so without special
+lemmas and tactics it will appear in side conditions. To deal with
+this the Floyd system has an autorewrite database that lets it push
+subst through functions that won't be affected by the substutution. For
+example 
+
+\begin{lstlisting}
+Lemma subst_sepcon: forall i v (P Q: environ->mpred),
+  subst i v (P * Q) = (subst i v P * subst i v Q).
+\end{lstlisting}
+
+Fortunately, we don't need a lemma for every function that might
+appear in assertions. Lifted functions can't do anything with the
+environment, they can only pass it on to their arguments, so
+by creating autorewrite rules for lifted functions we cover
+most of the functions that we use, and also most functions
+that a user might want to write. 
+
+Semantic substitution is still inconveninet for a few reasons. First,
+the rewrite rules aren't complete. This means that in some cases, after
+applying a logic rule, the user will see a \lstinline|subst| in a
+resulting condition. This can stop the automated entailment
+solvers from working correctly and make the assertion much harder
+to read. The next problem is an issue with autorewrite in general.
+Autorewrite in Coq is slow. Rewrites aren't known for their 
+performance, and autorewrite can do a large number of rewrites
+(in the case of \lstinline|subst| the number of rewrites is
+linear in the size of the assertion being rewritten). 
+
+There is a situation when a substitution \lstinline|subst $x$ $v$ $P$| can
+be avoided completely. That is when $P$ is \emph{closed} wrt. 
+$x$, also a semantic notion:
+
+\begin{lstlisting}
+Definition closed_wrt_vars {B} (S: ident -> Prop) (F: environ -> B) : Prop := 
+  forall rho te',  
+     (forall i, S i \/ Map.get (te_of rho) i = Map.get te' i) ->
+     F rho = F (mkEnviron (ge_of rho) (ve_of rho) te').
+\end{lstlisting}
+
+Generally we give \lstinline|S| as Coq equality with a specific identifier. 
+What \lstinline|closed_wrt_vars| means, then, is that if \lstinline|F|
+is supplied an environment that is the same at all locations but 
+the identifier(s) \lstinline|i| that satisy \lstinline|S|, the
+result of \lstinline|F| will be the same. That means that if we know
+\lstinline|closed_wrt_vars (eq x) (e)|, we can easily prove
+\lstinline|subst x _ e = e|. More intuitively, if an expression
+doesn't contain a variable, a substitution on that variable
+won't change the expression. 
+
+Floyd has a set lemma that takes advantage of this, stating that if
+the precondition and the expression in the assigment
+are closed wrt the variable being assigned into, no substitutions are
+needed, but there are numerous cases where this rule doesn't apply, 
+so the substitution will still appear. 
+
+\section{Canonical Form}
+
+The reason that substitutions are difficult, and that they need
+to be semantic is because there is no \emph{syntactic} restriction
+on where any individual identifier can appear within an assertion.
+Canonical form imposes such a restriction, and in doing so, eliminates
+the need for semantic substitution, replacing it with a more
+efficient and convenient computational syntactic substitution.
+
+One limitation of canonical form is that we no longer allow
+references to C program variables in the part of the assertion that
+contains spatial assertions. If these assertions wish to talk
+about those variables, they must do it indirectly using a Coq variable.
+This means that only the $\LOCAL$ part of the assertion has the ability
+to reference local variables. This still doesn't give us the ability to
+syntactically locate each reference though, so we restrict $\LOCAL$
+further. The restriction we use is to change the entirety of 
+$\LOCAL$ into two computational maps from identifiers to values.
+One of these represents temporary or nonadressable variables, and 
+the other represents addressable variables. Each mapping represents
+an equality between the evaluation of an identifier in the
+environment, and the value it maps to. The mappings are represented by PTrees,
+an efficient
+computational data structure in the Coq standard library. 
+
+With these two changes we get \emph{canonical form.}
+Let \lstinline{$T_1$: PTree val} be a computational map from
+C program identifiers to C values,
+representing the current values of the temporary local
+variables of the current program state. Let
+\lstinline{$T_2$: PTree (type*val)}
+be a map from identifiers to \lstinline{type*val}
+representing the addresses of addressable local variables.
+Then \lstinline{localD $T_1$ $T_2$: list(environ->Prop)}
+means a list of assertions about the contents of the \lstinline{environ},
+the nonmemory portion of the program state;
+we do not need \emph{arbitrary} 
+assertions of type \lstinline{list(environ->Prop)}.
+
+\lstinline{localD} is a \emph{denotation function},
+reflecting the syntactic (computationally oriented) $T_1$ and $T_2$
+back into our semantic world.  In symbolic execution
+and efficient entailment solving, we operate directly on 
+$T_1$ and $T_2$, reflecting the results back only when the 
+less efficient (but easier to understand) semantic view is
+needed by the user. Now a full assertion is:
+
+\begin{lstlisting}
+assertD $P$ (localD $T_1$ $T_2$) $R$ : environ->mpred
+$P$ : list prop$\qquad$ $T_1$ : PTree val$\qquad$ $T_2$ : PTree (type * val)$\qquad$ $R$ : list mpred
+\end{lstlisting}
+
+\subsection{Substitution in Canonical Form}
+
+Substitution in this assertion is 
+as simple as adding/replacing a mapping in $T_1$ or $T_2$. To see why imagine
+that we are doing a substituition on a temporary variable $x$. 
+\lstinline|$P$ : list prop| and \lstinline|$R$ : list mpred| don't
+refer to an environment, so they are trivially closed wrt.
+$x$. This leaves $T_1$ and $T_2$. The variable $x$
+is a temporary variable, so we know $T_2$ is closed wrt. $x$.
+The map $T_1$, however, might have a reference to $x$, meaning
+we actually need to do a substituiton, making sure to replace every reference
+to that variable. One of the requirements of a Coq map is:
+
+\begin{lstlisting}
+Axiom PTree.gss
+     : forall (A : Type) (i : positive) (x : A) (m : PTree.t A),
+       PTree.get (PTree.set i x m) i = Some x
+\end{lstlisting}
+
+This means that if we update $x$ in some PTree, the old
+mapping of $x$ will no longer exist, which is the exact
+definition we want from a substitution. That is how you do a substituition
+in an assertion, but we still need to do substitution in the arbitrary
+C expression that appears in the assignment statement and turn that expression
+into a value. It is simple enough to turn a C expression
+into an \lstinline|environ->val| using the \lstinline|eval_expr| function
+discussed in \ref{}, but that expression could have references to identifiers,
+which we can't have if we want syntactic substitution. Instead we can write
+a different version of \lstinline|eval_expr| called 
+\lstinline|msubst_eval_expr|. The only difference between the two functions
+is that when \lstinline|msubst_eval_expr| needs to evaluate a variable it
+doesn't do it in and environment. Instead, it performs the lookup in 
+PTrees $T_1$ or $T_2$ mentioned earlier. In other words, if
+\lstinline|eval_expr| evaluates an expression in an environment, 
+\lstinline|msubst_eval_expr| symbolically evaluates an expression
+in an assertion. This symbolic evaluation is partial because there might
+not be any information about a variable in the assertion. So in our
+lemma we require \lstinline|msubst_eval_expr| to succeed:
+
+\begin{lstlisting}
+Axiom semax_PTree_set: $~~$forall $\Delta$ id P T1 T2 R $e$ v,
+  msubst_eval_expr T1 T2 $e$ = Some v ->
+  semax $\Delta$
+    (|> local (tc_expr $\Delta$ $e$) && local (tc_temp_id id (typeof e) $\Delta$ e) 
+            && (assertD P (localD T1 T2) R))
+    (Sset id $e$)
+    (normal_ret_assert (assertD P (localD (PTree.set id v T1) T2) R)).
+\end{lstlisting}
+
+What that means is that for this lemma to be used, the precondition must
+have mappings for every variable that appears in $e$. The previous 
+lemma didn't require this because it was able to use \lstinline|eval_expr|
+wherever it wanted to without requiring a complete, successful, symbolic
+execution. This still works for proofs because \lstinline|`eval_expr $e$|
+might eventually simplify to \lstinline|`eval_id $x$|, which could appear
+in other places in the assertion. 
+
+\lstinline|semax_PTree_set| also doesn't have an existential. This
+makes things simpler for the user and the proof automation. The existential
+for the old value isn't terribly inconvenient on it's own, it can be 
+moved to the outside of the triple and introduced without much difficulty,
+especially because it's location in the precondition is consistent. The
+difficulty comes when choosing what to name the introduced variable. The
+solution in the tactics is to allow the user to specify names with the name
+tactic. Using \lstinline|name y _y|) tells the automation that values
+associated with variable \lstinline|_y| should automatically be named
+\lstinline|y| or \lstinline|y0|, \lstinline|y1|, \ldots if it isn't available.
+This is a decent solution but it puts a hypothesis above the line, adding
+to what can already be a long list of hypotheses. It is also inconvenient
+in programs that make multiple assignments into the same variable. The
+following program is an example of what you might see without improved
+tactics or user cleanup: 
+
+\begin{lstlisting}
+{`eq (eval_id _x) x}
+x = x+1;
+{`eq (eval_id _x) (x0 + 1); `eq (x0 x)}
+x = x+2;
+{`eq (eval_id _x) (x1 + 1); `eq x1 (x0 + 1); `eq x0 x}
+...
+\end{lstlisting}
+
+
+
+Semi-canonical form is very convenient for the user when \emph{writing}
+assertions. The list notation is great for combining 
+assertions without having to remember the exact conjunction that
+must be used for each part. It also allows the $\LOCAL$ to remain
+small, because if there is a variable the user knows nothing
+about, there is no need to add it to the locals. It is less convenient
+when moving through a proof of a program. It can introduce
+existentials and substitutions that are slow to simplify, or sometimes
+don't simplify at all. 
+
+
+
+
+\chapter{Applying A Reflective Framework}
+
+\chapter{Conclusion}
+
+\bibliographystyle{plain}
+\bibliography{appel.bib}
+
+\end{document}
+
