@@ -314,6 +314,77 @@ don't simplify at all.
 
 \chapter{Applying A Reflective Framework}
 
+\section{Modular Reflection}
+
+Before presenting the reflective framework we presented both the typecher,
+and a canonical form for assertions which allows us to do substitutions computationally.
+Both our techniques and the reflective framework are reflective.
+They use proved-sound coq functions to make progress in a proof. This
+section discusses how these techniques interact. There
+is no interesting interaction between the substitution and the
+typechecker because they occur in different places. When we try
+to apply a reflective framework to a logic that uses these reflective
+techniques, though, we run into some interesting challenges. This
+section discusses those challenges and questions if they are 
+avoidable in a differently designed reflective framework.
+
+A function that is used in a logic can fall into one of
+three categories with respect to their interaction
+with the reflective framework:
+
+\begin{itemize}
+  \item A function that operates on constants and returns a type that can be represented as a constant
+    requires no modification to be used in MirrorCore.
+  \item A function that operates on constants and returns Prop or Type will look exactly
+    the same but return reified results.
+  \item A function that might operate on Coq variables must take reified expressions as 
+    arguments and return a reified result.
+\end{itemize}
+
+The first category is convenient, but unfortunately fairly few functions that
+we use fall into this category. The reason that they can return any
+type but Type or Prop is because in general if a function returns a result we
+will want to reason about it, and if it can't be represented by a constant
+we will be unable to do anything with it in the Mirror-Core framework.
+
+The second category includes the typechecker. The typechecker returns
+\lstinline|environ -> Prop| that might eventually be discharged
+by either the person writing the proof or some automation. 
+In order to allow reflective automation to have a chance to solve these remaining
+conditions, we must write a new function who instead of returning
+\lstinline|environ -> Prop| returns an \lstinline|expr| whose denotation
+is (provably) the same as the result of the original typechecker called
+on the same arguments. 
+
+\begin{lstlisting}
+Definition tc_expr_reif (e : c_expr) (Delta : tycontext) : expr.
+
+Lemma tc_expr_reif_sound_complete : forall tus tvs e Delta,
+exprD' tus tvs (tyarr tyenviron typrop) (tc_expr_reif e Delta) =
+exprD' tus tbs (tyarr tyenviron typrop) (ftc_expr e Delta).
+\end{lstlisting}
+
+Notice that the right hand side of the equality in the lemma doens't
+refer to the original typechecking function but the trivially reified
+version. That is, ftc_expr is a constructor whose denotation is equal
+to tc_expr, while tc_expr_reif is a function that when applied will have
+a denotation equal to tc_expr applied to the same arguments. The function
+tc_expr_reif can compute while no progress can be made on ftc_expr.
+We put the denotation function on both sides of the function because
+this allows us to write an RTac that finds reified terms that look like
+\lstinline|ftc_expr e Delta| (uncomputable) and replace them with a term
+\lstinline|tc_expr e Delta|. This is important because we might want
+to run some other RTac on the result of the typechecking. Possibly
+an enatilment solver to discharge any remaining conditions. 
+
+We prove that tc_expr_reif is sound, or that when it has a denotation,
+that denotation matches the tc_expr function. We also prove it complete by
+showing that whenever ftc_expr has a denotation, tc_expr_reif does as well.
+In this case sound and complete is the most useful so we prove it. We have
+found other cases where only soundness is necessary, and will discuss those
+later.
+
+
 \chapter{Conclusion}
 
 \bibliographystyle{plain}
