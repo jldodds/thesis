@@ -384,6 +384,47 @@ In this case sound and complete is the most useful so we prove it. We have
 found other cases where only soundness is necessary, and will discuss those
 later.
 
+The final category is functions whose inputs might contain Coq variables. An example
+of where we run into this is the \lstinline|PTree.set| and \lstinline|PTree.get|
+operations that are in the postcondition of our assignment rules. These functions
+can be computed on their own, even if they are given a \lstinline|PTree| with a
+coq variable in it as an argument. The problem is that there is no way to represent
+any datastructure that contains a coq variable as a constant. This is because there
+is no way to computationally compare two coq variables for equality. In order to 
+computationally check equality over coq variables, they must first be reified.
+Reification is designed so that if it sees the same variable twice, it will use
+the same constructor to represent both instances. The constructors can be 
+computationally compared, so variables can be compared in reified syntax.
+We will need to do comparisons on the variables in the local assertion almost
+any time we solve an entailment, so we will need to reify the variables.
+
+What that means is that we must rewrite \lstinline|PTree.set| and \lstinline|PTree.get|
+to operate on fully reified PTrees. This can be difficult because of the size 
+of the reified syntax. One way to mitigate the complexity of the code is to 
+create a function that matches a reified expression as a tree:
+
+\begin{lstlisting}
+Definition as_tree (e : expr typ func) : option
+  ((typ * expr typ func * expr typ func * expr typ func) + typ) := 
+match e with
+  | (App (App (App (Inj (inr (Data (fnode t)))) l) o) r) =>
+    Some (inl (t, l, o, r))
+  | (Inj (inr (Data (fleaf t)))) =>
+    Some (inr t)
+  | _ => None
+end.
+\end{lstlisting}
+
+This allows the function that operates over reified expressions to look very
+similar to original exprssion, and also simplifies the proof. The function
+and the proof will now have 3 cases. The first have the same behavior (only reified)
+as the \lstinline|leaf| and \lstinline|node| cases of the original function. The third
+case is the case where \lstinline|as_tree| returns \lstinline|None|. This doesn't
+mean that the function doesn't typecheck because there is no requirement on 
+expressions that a PTree can only be represented by those two constructors. There
+could be another constructor with the same denotation, or more likely a PTree
+could be an application of \lstinline|PTree.set| that didn't get simplified.
+In this case 
 
 \chapter{Conclusion}
 
