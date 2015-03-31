@@ -49,8 +49,170 @@ Inductive boolean :=
 so \lstinline|boolean| is a type that can be constructed by either \lstinline|true| or \lstinline|false|
 and when given a \lstinline|boolean|, a function can decide which of the two it is. Now we can look 
 at the definition of \lstinline|True| and \lstinline|False| (capitalized), which are in the type 
-\lstinline|Prop| instead of \lstinline|bool|
+\lstinline|Prop| instead of \lstinline|bool|. Prop is not an
+inductively defined type in Coq, so it can't be matched
+against. Instead the types of \lstinline|True| and \lstinline|False|
+are
 
+\begin{lstlisting}
+Inductive True : Prop :=
+  I : True.
+
+Inductive False : Prop
+\begin{lstlisting}
+
+So if a Coq program is given something of type \lstinline|Prop|, it
+has no ability to determine what it is, just like if it is given a
+value of an arbitrary type it is unable to determine what that type
+is. That doesn't mean that it is impossible to reason about things of
+type \lstinline|Prop| in Coq though. Instead, Coq has tactics, which
+exist almost exclusively for that reason. A tactic in Coq is a program
+that manipulates a proof state. A Coq proof state is a goal, or a
+\lstinline|Prop| to be proved, along with a number of quantified
+variables of any type, and a number of hypothesis of type
+\lstinline|Prop|. Because Ltac is used to build proofs, it must keep a
+record any time it makes progress on the proof term so that when the
+proof is over, the record of the proof, or the proof object, can be
+checked.
+
+This design means that Ltac doesn't need to be sound. As long as it
+results in a correct proof in the end, it doesn't really matter how it
+did it. Proofs that do a large amount of proof search to do a
+reasonably small amount of work in the end can perform reasonably well
+in Ltac. Unfortunately, many of the proofs that Coq's users want to do
+require both a lot of proof search, and numerous operations over the
+proof state to succeed. In these cases, the overhead of keeping and
+modifying the
+proof object (which can take up substantial amounts of memory) can
+lead to very slow Ltac performance. 
+
+Logics such as VST's verifiable C logic are in
+\lstinline|Prop|. Logics in Prop are said to be shallowly
+embedded. They use the syntax of Coq, rather than defining a logic of
+their own. Some systems such as Appel's VeriSmall \cite{} are deeply
+embedded, meaning they define their own syntax, along with a
+denotation that gives meaning to that syntax in Coq's logic. 
+
+Shallow and Deep embeddings have tradeoffs in two areas:
+
+\begin{enumerate}
+\item interactivity, or how convenient it is for users to interact
+  with the logic, generally in the way they would expect to be able to
+  interact with Coq's logic, and
+\item automation, or the ability of the logic writer to provide the
+  user of the logic with tools to efficiently reason about the logic.
+\end{enumerate}
+
+For interactivity, a shallow embedding will automatically get all of
+the automation that Coq provides. Ltac can be used to write decision
+procedures about the logic without requiring soundness proofs for
+those procedures. A deep embedding, however, will be much harder to
+interact with. To have meaning as a proof goal, a deep embedding will
+need to be wrapped in its denotation function. At this point many of
+the operations users familiar with Coq would expect will require a
+significant amount of work from the creator of the logic. The main
+reason for this is that in a deep embedding every operation on the
+deeply embedded assertion must be proved sound with respect to the
+denotation function. Take Coq's rewrite tactic as an example. In this
+tactic if we have a lemma about an equality for example:
+
+\begin{lstlisting}
+Lemma add_symm : forall a b, a + b = b + a
+\end{lstlisting}
+
+and we wish to prove a goal 
+
+\begin{lstlisting}
+a : nat
+b : nat
+c : nat
+======================
+a + (b + c) = a + (c + b) 
+\end{lstlisting}
+
+we can use the tactic \lstinline|rewrite (add_sym b c); reflexivity|
+to transform the left side to match the right side, and then tell Coq
+that we have an equation where the two sides are syntactically
+equal. We supply the arguments \lstinline|b| and \lstinline|c| to the
+tactic because it is ambiguous where to rewrite the lemma, and Coq
+might guess wrong unless we tell it.
+
+Now imagine we have a deep embedding for nat, addition, and equality
+
+\begin{lstlisting}
+Inductive expr' :=
+| num : nat -> expr
+| add : expr -> expr -> expr.
+
+Inductive expr :=
+| eq : expr' -> expr' -> expr.
+
+Fixpoint expr'_denote e:=
+match e with
+| num n => n
+| add e1 e2 => expr_denote e1 + expr_denote e2
+end.
+
+Definition expr_denote e :=
+match e with
+| eq e1 e2 => expr'_denote e1 = expr'_denote e2
+end.
+\end{lstlisting} 
+
+Then we can write a symmetry lemma
+
+\begin{lstlisting}
+Lemma add_sym' : forall a b, 
+expr'_denote (add a b) = expr'_denote (add b a)
+\end{lstlisting}
+
+While this isn't too hard to prove, it also doesn't end up being too
+useful in proving our goal:
+
+\begin{lstlisting}
+a : expr
+b : expr
+c : expr
+======================
+expr_denote (add a (add b c)) (add a (add c b))  
+\end{lstlisting}
+
+The lemma we wrote doesn't match the syntax of what we need to prove
+so we can't use the rewrite tactic. We could unfold the definition of
+\lstinline|expr_denote| and \lstinline|expr_denote'| in our goal, but
+then we would lose the deep embedding. Instead, if we want this
+functionality, we need to write a \emph{Coq function} that does the
+rewrite and prove that function sound with respect to the denotation
+function (assuming we have an equality function on our expr, which
+isn't hard to write):
+
+\begin{lstlisting}
+Fixpoint symmetry' e e1 e2 := 
+match e with
+| add e1' e2' => if (e1 == e1' && e2 = e2') 
+                 then add e2' e1' 
+                 else add (symmetry e1') 
+                          (symmetry e2')
+| x => x
+end.
+
+Definition symmetry e e1 e2 :=
+match e with
+| eq ex1 ex2 => eq (symmetry' ex1 e1 e2) (symmetry ex2 e1 e2)
+end.
+
+Lemma symmetry_func_sound : 
+forall e1 e2,
+expr_denote (e) = expr_denote (symmetry e)
+...
+\end{lstlisting}
+
+Now we can rewrite by \lstinline|symmetry_func_sound| and simplify the definition
+of symmetry in the new goal, and we will have done the same thing we
+did with LTac in a single command.
+
+Why would we ever use a deep embedding when automation is so much
+work? 
 
 \section{Ltac}
 
@@ -383,10 +545,10 @@ exprD' tus tbs (tyarr tyenviron typrop) (ftc_expr e Delta).
 
 Notice that the right hand side of the equality in the lemma doens't
 refer to the original typechecking function but the trivially reified
-version. That is, ftc_expr is a constructor whose denotation is equal
-to tc_expr, while tc_expr_reif is a function that when applied will have
-a denotation equal to tc_expr applied to the same arguments. The function
-tc_expr_reif can compute while no progress can be made on ftc_expr.
+version. That is, \lstinline|ftc_expr| is a constructor whose denotation is equal
+to \lstinline|tc_expr|, while \lstinline|tc_expr_reif| is a function that when applied will have
+a denotation equal to \lstinline|tc_expr| applied to the same arguments. The function
+\lstinline|tc_expr_reif| can compute while no progress can be made on \lstinline|ftc_expr|.
 We put the denotation function on both sides of the function because
 this allows us to write an RTac that finds reified terms that look like
 \lstinline|ftc_expr e Delta| (uncomputable) and replace them with a term
@@ -394,13 +556,75 @@ this allows us to write an RTac that finds reified terms that look like
 to run some other RTac on the result of the typechecking. Possibly
 an enatilment solver to discharge any remaining conditions. 
 
-We prove that tc_expr_reif is sound, or that when it has a denotation,
-that denotation matches the tc_expr function. We also prove it complete by
-showing that whenever ftc_expr has a denotation, tc_expr_reif does as well.
+We prove that \lstinline|tc_expr_reif| is sound, or that when it has a denotation,
+that denotation matches the \lstinline|tc_expr| function. We also prove it complete by
+showing that whenever \lstinline|ftc_expr| has a denotation, \lstinline|tc_expr_reif| does as well.
 In this case sound and complete is the most useful so we prove it. We have
 found other cases where only soundness is necessary, and will discuss those
 later.
 
+The final category is functions whose inputs might contain Coq variables. An example
+of where we run into this is the \lstinline|PTree.set| and \lstinline|PTree.get|
+operations that are in the postcondition of our assignment rules. These functions
+can be computed on their own, even if they are given a \lstinline|PTree| with a
+coq variable in it as an argument. The problem is that there is no way to represent
+any datastructure that contains a coq variable as a constant. This is because there
+is no way to computationally compare two coq variables for equality. In order to 
+computationally check equality over coq variables, they must first be reified.
+Reification is designed so that if it sees the same variable twice, it will use
+the same constructor to represent both instances. The constructors can be 
+computationally compared, so variables can be compared in reified syntax.
+We will need to do comparisons on the variables in the local assertion almost
+any time we solve an entailment, so we will need to reify the variables.
+
+What that means is that we must rewrite \lstinline|PTree.set| and \lstinline|PTree.get|
+to operate on fully reified PTrees. This can be difficult because of the size 
+of the reified syntax. One way to mitigate the complexity of the code is to 
+create a function that matches a reified expression as a tree:
+
+\begin{lstlisting}
+Definition as_tree (e : expr typ func) : option
+  ((typ * expr typ func * expr typ func * expr typ func) + typ) := 
+match e with
+  | (App (App (App (Inj (inr (Data (fnode t)))) l) o) r) =>
+    Some (inl (t, l, o, r))
+  | (Inj (inr (Data (fleaf t)))) =>
+    Some (inr t)
+  | _ => None
+end.
+\end{lstlisting}
+
+This allows the function that operates over reified expressions to look very
+similar to original exprssion, and also simplifies the proof. The function
+and the proof will now have 3 cases. The first have the same behavior (only reified)
+as the \lstinline|leaf| and \lstinline|node| cases of the original function. The third
+case is the case where \lstinline|as_tree| returns \lstinline|None|. This doesn't
+mean that the function doesn't typecheck because there is no requirement on 
+expressions that a PTree can only be represented by those two constructors. There
+could be another constructor with the same denotation, or more likely a PTree
+could be an application of \lstinline|PTree.set| that didn't get simplified.
+If we encounter a reified PTree that isn't represented
+only by the expected constructors, we have a choice depending on
+weather we require completeness or not. If we require completeness,
+we can just apply the set function as a reified constructor. This
+will result in a complete function. That means that if we
+pass our reified function all valid reified arguments
+the denotation of the result of the function will always
+match the denotation of the original function applied
+to the denotation of the arguments. It is the most convenient
+to write an RTac for reified functions of this type because
+there is a pre-built RTac that replaces one reified expression
+with another. This RTac can only be proved sound if there is a proof
+of equality between any two expressions that the tactic might come
+across. The only downside to this approach is that proving that the
+reified function is complete takes much more work than only proving it
+sound. 
+
+These reified functions are an inconvenience and one of the largest
+barriers to easily applying a reflective framework in a setting like
+VST. It is an important open question wheather this is avoidable. Can
+a reflective framework reuse compuations that might operate
+over coq variables without requiring reified functions? 
 
 \chapter{Conclusion}
 
