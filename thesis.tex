@@ -37,6 +37,23 @@
 
 \chapter{Computation in Coq}
 
+Coq's functional programming language Gallina has the ability to match inductive
+datastructures. The type boolean, for example can be defined as
+
+\begin{lstlisting}
+Inductive boolean :=
+| true
+| false.
+\end{lstlisting}
+
+so \lstinline|boolean| is a type that can be constructed by either \lstinline|true| or \lstinline|false|
+and when given a \lstinline|boolean|, a function can decide which of the two it is. Now we can look 
+at the definition of \lstinline|True| and \lstinline|False| (capitalized), which are in the type 
+\lstinline|Prop| instead of \lstinline|bool|
+
+
+\section{Ltac}
+
 \chapter{Typechecking C Expressions}
 think about if there is more that needs to be explained
 
@@ -309,31 +326,10 @@ when moving through a proof of a program. It can introduce
 existentials and substitutions that are slow to simplify, or sometimes
 don't simplify at all. 
 
-Canonical form, on the other hand, has many of the same benifits
-as semi-canonical form. It conveniently organizes the three types of
-assertions and hides conjunctions in the same way Semi-canonical form
-does. It is slightly less convenient to write assertions in canonical
-form though, because every variable that will be referred to in a
-program must be explicitly mentioned in the $\LOCAL$ and also
-explicitly given a name there. When moving through a program, though,
-the automation will always be able to use these names and never be in
-a position to come up with names on its own. This can be a huge help
-to the proof writer when keeping names straight. It will also perform
-better while stepping through many statements by replacing an
-autorewrite operation with simplification of a computation over an
-efficient map datastructure. The computational dastructure is hard for
-a human reader to understand, however, and further research is needed
-to understand how to most efficiently display the information held in
-the map without losing out on the performance advantages.
-
 
 
 
 \chapter{Applying A Reflective Framework}
-
-
-\section{Dependent Types}
-
 
 \section{Modular Reflection}
 
@@ -387,10 +383,10 @@ exprD' tus tbs (tyarr tyenviron typrop) (ftc_expr e Delta).
 
 Notice that the right hand side of the equality in the lemma doens't
 refer to the original typechecking function but the trivially reified
-version. That is, \lstinline|ftc_expr| is a constructor whose denotation is equal
-to \lstinline|tc_expr|, while \lstinline|tc_expr_reif| is a function that when applied will have
-a denotation equal to \lstinline|tc_expr| applied to the same arguments. The function
-\lstinline|tc_expr_reif| can compute while no progress can be made on \lstinline|ftc_expr|.
+version. That is, ftc_expr is a constructor whose denotation is equal
+to tc_expr, while tc_expr_reif is a function that when applied will have
+a denotation equal to tc_expr applied to the same arguments. The function
+tc_expr_reif can compute while no progress can be made on ftc_expr.
 We put the denotation function on both sides of the function because
 this allows us to write an RTac that finds reified terms that look like
 \lstinline|ftc_expr e Delta| (uncomputable) and replace them with a term
@@ -398,78 +394,14 @@ this allows us to write an RTac that finds reified terms that look like
 to run some other RTac on the result of the typechecking. Possibly
 an enatilment solver to discharge any remaining conditions. 
 
-We prove that \lstinline|tc_expr_reif| is sound, or that when it has a denotation,
-that denotation matches the \lstinline|tc_expr| function. We also prove it complete by
-showing that whenever \lstinline|ftc_expr| has a denotation, \lstinline|tc_expr_reif| does as well.
+We prove that tc_expr_reif is sound, or that when it has a denotation,
+that denotation matches the tc_expr function. We also prove it complete by
+showing that whenever ftc_expr has a denotation, tc_expr_reif does as well.
 In this case sound and complete is the most useful so we prove it. We have
 found other cases where only soundness is necessary, and will discuss those
 later.
 
-The final category is functions whose inputs might contain Coq variables. An example
-of where we run into this is the \lstinline|PTree.set| and \lstinline|PTree.get|
-operations that are in the postcondition of our assignment rules. These functions
-can be computed on their own, even if they are given a \lstinline|PTree| with a
-coq variable in it as an argument. The problem is that there is no way to represent
-any datastructure that contains a coq variable as a constant. This is because there
-is no way to computationally compare two coq variables for equality. In order to 
-computationally check equality over coq variables, they must first be reified.
-Reification is designed so that if it sees the same variable twice, it will use
-the same constructor to represent both instances. The constructors can be 
-computationally compared, so variables can be compared in reified syntax.
-We will need to do comparisons on the variables in the local assertion almost
-any time we solve an entailment, so we will need to reify the variables.
 
-What that means is that we must rewrite \lstinline|PTree.set| and \lstinline|PTree.get|
-to operate on fully reified PTrees. This can be difficult because of the size 
-of the reified syntax. One way to mitigate the complexity of the code is to 
-create a function that matches a reified expression as a tree:
-
-\begin{lstlisting}
-Definition as_tree (e : expr typ func) : option
-  ((typ * expr typ func * expr typ func * expr typ func) + typ) := 
-match e with
-  | (App (App (App (Inj (inr (Data (fnode t)))) l) o) r) =>
-    Some (inl (t, l, o, r))
-  | (Inj (inr (Data (fleaf t)))) =>
-    Some (inr t)
-  | _ => None
-end.
-\end{lstlisting}
-
-This allows the function that operates over reified expressions to look very
-similar to original exprssion, and also simplifies the proof. The function
-and the proof will now have 3 cases. The first have the same behavior (only reified)
-as the \lstinline|leaf| and \lstinline|node| cases of the original function. The third
-case is the case where \lstinline|as_tree| returns \lstinline|None|. This doesn't
-mean that the function doesn't typecheck because there is no requirement on 
-expressions that a PTree can only be represented by those two constructors. There
-could be another constructor with the same denotation, or more likely a PTree
-could be an application of \lstinline|PTree.set| that didn't get simplified.
-If we encounter a reified PTree that isn't represented
-only by the expected constructors, we have a choice depending on
-weather we require completeness or not. If we require completeness,
-we can just apply the set function as a reified constructor. This
-will result in a complete function. That means that if we
-pass our reified function all valid reified arguments
-the denotation of the result of the function will always
-match the denotation of the original function applied
-to the denotation of the arguments. It is the most convenient
-to write an RTac for reified functions of this type because
-there is a pre-built RTac that replaces one reified expression
-with another. This RTac can only be proved sound if there is a proof
-of equality between any two expressions that the tactic might come
-across. The only downside to this approach is that proving that the
-reified function is complete takes much more work than only proving it
-sound. 
-
-These reified functions are an inconvenience and one of the largest
-barriers to easily applying a reflective framework in a setting like
-VST. It is an important open question wheather this is avoidable. Can
-a reflective framework reuse compuations that might operate
-over coq variables without requiring reified functions? 
-
-
-\chapter{Evaluation}
 \chapter{Conclusion}
 
 \bibliographystyle{plain}
