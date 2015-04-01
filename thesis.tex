@@ -249,7 +249,29 @@ The process of translating from a shallow embedding to a deep
 embedding is known as reification. Because Coq programs can't match on
 shallow embeddings, reification must be performed by a
 tactic. Reification leaves us with a deep embedding (or reified
-expression), which we can do computation on in the same way
+expression), which allows us to use proved-sound Coq functions to
+progress the proof state without large proof terms. When the deep
+embedding is at a state that requires human work, the denotation
+function can be carefully unfolded, or reflected, to return it to a
+shallow embedding that is easy for the user to view and work with.
+
+%graphic from prefpo 
+
+Many shallow embeddings, including VST, have parts that are generally
+made up completely of constructors. In most program logics, for
+example, the programming language will not be Coq's programming
+language, but a deep embedding of the syntax of the language along
+with a semantics that describes the execution of that syntax in the
+state of the programming language. Because the syntax is a deep
+embedding, it is possible to write Coq functions that reason about
+them, and then prove those functions sound (usually with respect to
+the operational semantics). This is a type of reflection that doesn't
+require reification at all, making it more efficient and allowing it
+to fit cleanly into the shallowly embedded program logic. One such
+example in VST is the typechecker which is used to show that
+expressions in the program successfully evaluate given the state
+represented by the precondition.
+
 
 \chapter{Typechecking C Expressions}
 think about if there is more that needs to be explained
@@ -671,6 +693,10 @@ a reflective framework reuse computations that might operate
 over Coq variables without requiring reified functions? 
 
 \chapter{Evaluation}
+
+Mostly same as paper evaluation, more discussion of why the synthetic
+example is a useful metric for what we can expect in real programs, 
+maybe a synthetic example for load/store too
 
 \chapter{Conclusion}
 
