@@ -38,7 +38,7 @@
 \chapter{Computation in Coq}
 
 Coq's functional programming language Gallina has the ability to match inductive
-datastructures. The type boolean, for example can be defined as
+data-structures. The type boolean, for example can be defined as
 
 \begin{lstlisting}
 Inductive boolean :=
@@ -212,25 +212,25 @@ of symmetry in the new goal, and we will have done the same thing we
 did with LTac in a single command.
 
 Why would we ever use a deep embedding when automation is so much
-work? The main reason is efficency. While LTac does an operation and
+work? The main reason is efficiency. While LTac does an operation and
 needs to build a proof object, a proved-sound function that operates on
 a deeply embedded proof goal does an operation and at the same time is
-a (very small) proof ojbect. The example above did a very small amount
+a (very small) proof object. The example above did a very small amount
 of work in the symmetry function, but such a function could be an
 entire decision procedure. Then we would be able to do a large
 amount of work on a deeply embedded proof term while hardly generating
 any proof object at all. In general, this will be substantially more
-efficient than using LTac, espscially as the size of the
+efficient than using LTac, especially as the size of the
 deeply-embedded statements grows. 
 
 Another advantage to a deeply embedded logic is that if there is a
 single decision procedure for it that works all in one function, that
-function can be \emph{extracted} and run in Ocaml. This gives the
+function can be \emph{extracted} and run in OCaml. This gives the
 performance of an optimized language, with most of the assurance that
 comes with having a proved-sound decision procedure in Coq.
 
 The technique of computational reflection in Coq aims to combine the
-interactivity of a shallow embedding with the efficiecy of a deep
+interactivity of a shallow embedding with the efficiency of a deep
 embedding by moving between the two when it is needed.
 
 \section{Computational reflection}
@@ -312,11 +312,11 @@ Axiom semax_set_forward: $~~$forall $\Delta$ ($P$: environ->mpred) ($x$: ident) 
                     && subst $x$ (`old) $P$)).
 \end{lstlisting}
 
-There are two substitutions here, used to replace any occurences of the
-variable \lstinline|x| that might have occured in either the precondition
+There are two substitutions here, used to replace any occurrences of the
+variable \lstinline|x| that might have occurred in either the precondition
 or the expression being assigned into \lstinline|x|. 
 Although subst is a function, in practice it can never be computed.
-This is becuase it works by updating the environment that $P$
+This is because it works by updating the environment that $P$
 refers to. During symbolic execution, however, the environment is always
 abstract, constrained only by the precondition, which means there is
 no datastructure to be updated. This means that the definition of 
@@ -324,7 +324,7 @@ no datastructure to be updated. This means that the definition of
 useful to proof automation. It can't compute so without special
 lemmas and tactics it will appear in side conditions. To deal with
 this the Floyd system has an autorewrite database that lets it push
-subst through functions that won't be affected by the substutution. For
+subst through functions that won't be affected by the substitution. For
 example 
 
 \begin{lstlisting}
@@ -339,7 +339,7 @@ by creating autorewrite rules for lifted functions we cover
 most of the functions that we use, and also most functions
 that a user might want to write. 
 
-Semantic substitution is still inconveninet for a few reasons. First,
+Semantic substitution is still inconvenient for a few reasons. First,
 the rewrite rules aren't complete. This means that in some cases, after
 applying a logic rule, the user will see a \lstinline|subst| in a
 resulting condition. This can stop the automated entailment
@@ -364,7 +364,7 @@ Definition closed_wrt_vars {B} (S: ident -> Prop) (F: environ -> B) : Prop :=
 Generally we give \lstinline|S| as Coq equality with a specific identifier. 
 What \lstinline|closed_wrt_vars| means, then, is that if \lstinline|F|
 is supplied an environment that is the same at all locations but 
-the identifier(s) \lstinline|i| that satisy \lstinline|S|, the
+the identifier(s) \lstinline|i| that satisfy \lstinline|S|, the
 result of \lstinline|F| will be the same. That means that if we know
 \lstinline|closed_wrt_vars (eq x) (e)|, we can easily prove
 \lstinline|subst x _ e = e|. More intuitively, if an expression
@@ -372,7 +372,7 @@ doesn't contain a variable, a substitution on that variable
 won't change the expression. 
 
 Floyd has a set lemma that takes advantage of this, stating that if
-the precondition and the expression in the assigment
+the precondition and the expression in the assignment
 are closed wrt the variable being assigned into, no substitutions are
 needed, but there are numerous cases where this rule doesn't apply, 
 so the substitution will still appear. 
@@ -433,13 +433,13 @@ $P$ : list prop$\qquad$ $T_1$ : PTree val$\qquad$ $T_2$ : PTree (type * val)$\qq
 
 Substitution in this assertion is 
 as simple as adding/replacing a mapping in $T_1$ or $T_2$. To see why imagine
-that we are doing a substituition on a temporary variable $x$. 
+that we are doing a substitution on a temporary variable $x$. 
 \lstinline|$P$ : list prop| and \lstinline|$R$ : list mpred| don't
 refer to an environment, so they are trivially closed wrt.
 $x$. This leaves $T_1$ and $T_2$. The variable $x$
 is a temporary variable, so we know $T_2$ is closed wrt. $x$.
 The map $T_1$, however, might have a reference to $x$, meaning
-we actually need to do a substituiton, making sure to replace every reference
+we actually need to do a substitution, making sure to replace every reference
 to that variable. One of the requirements of a Coq map is:
 
 \begin{lstlisting}
@@ -450,7 +450,7 @@ Axiom PTree.gss
 
 This means that if we update $x$ in some PTree, the old
 mapping of $x$ will no longer exist, which is the exact
-definition we want from a substitution. That is how you do a substituition
+definition we want from a substitution. That is how you do a substitution
 in an assertion, but we still need to do substitution in the arbitrary
 C expression that appears in the assignment statement and turn that expression
 into a value. It is simple enough to turn a C expression
@@ -523,17 +523,26 @@ when moving through a proof of a program. It can introduce
 existentials and substitutions that are slow to simplify, or sometimes
 don't simplify at all. 
 
-
-
+Even the current form is not completely canonical. It could be
+restricted further which would improve performance in some ways, but
+also inconvenience the user in others. Finding a way to sort the
+$\SEP$ and keep it sorted as new conjunctions are added could lead to
+very efficient and simple entailment solving. This is a harder problem
+than sorting the $\LOCAL$ though, because we want $\SEP$ to contain a
+variety of predicates, including predicates that are created by the
+user. The other problem is that Coq variables can appear as arguments
+to the predicates, making it impossible to establish an ordering over
+them. Even so, any amount of canonicalization of the $\SEP$ could help
+with entailment solving efficiency, so it is worth a look in the future. 
 
 \chapter{Applying A Reflective Framework}
 
 \section{Modular Reflection}
 
-Before presenting the reflective framework we presented both the typecher,
+Before presenting the reflective framework we presented both the typechecker,
 and a canonical form for assertions which allows us to do substitutions computationally.
 Both our techniques and the reflective framework are reflective.
-They use proved-sound coq functions to make progress in a proof. This
+They use proved-sound Coq functions to make progress in a proof. This
 section discusses how these techniques interact. There
 is no interesting interaction between the substitution and the
 typechecker because they occur in different places. When we try
@@ -561,14 +570,14 @@ type but Type or Prop is because in general if a function returns a result we
 will want to reason about it, and if it can't be represented by a constant
 we will be unable to do anything with it in the Mirror-Core framework.
 
-The second category includes the typechecker. The typechecker returns
+The second category includes the typechecker which returns
 \lstinline|environ -> Prop| that might eventually be discharged
 by either the person writing the proof or some automation. 
 In order to allow reflective automation to have a chance to solve these remaining
 conditions, we must write a new function who instead of returning
 \lstinline|environ -> Prop| returns an \lstinline|expr| whose denotation
 is (provably) the same as the result of the original typechecker called
-on the same arguments. 
+on the same arguments.
 
 \begin{lstlisting}
 Definition tc_expr_reif (e : c_expr) (Delta : tycontext) : expr.
@@ -578,7 +587,7 @@ exprD' tus tvs (tyarr tyenviron typrop) (tc_expr_reif e Delta) =
 exprD' tus tbs (tyarr tyenviron typrop) (ftc_expr e Delta).
 \end{lstlisting}
 
-Notice that the right hand side of the equality in the lemma doens't
+Notice that the right hand side of the equality in the lemma doesn't
 refer to the original typechecking function but the trivially reified
 version. That is, \lstinline|ftc_expr| is a constructor whose denotation is equal
 to \lstinline|tc_expr|, while \lstinline|tc_expr_reif| is a function that when applied will have
@@ -589,7 +598,7 @@ this allows us to write an RTac that finds reified terms that look like
 \lstinline|ftc_expr e Delta| (uncomputable) and replace them with a term
 \lstinline|tc_expr e Delta|. This is important because we might want
 to run some other RTac on the result of the typechecking. Possibly
-an enatilment solver to discharge any remaining conditions. 
+an entailment solver to discharge any remaining conditions. 
 
 We prove that \lstinline|tc_expr_reif| is sound, or that when it has a denotation,
 that denotation matches the \lstinline|tc_expr| function. We also prove it complete by
@@ -604,8 +613,8 @@ operations that are in the postcondition of our assignment rules. These function
 can be computed on their own, even if they are given a \lstinline|PTree| with a
 coq variable in it as an argument. The problem is that there is no way to represent
 any datastructure that contains a coq variable as a constant. This is because there
-is no way to computationally compare two coq variables for equality. In order to 
-computationally check equality over coq variables, they must first be reified.
+is no way to computationally compare two Coq variables for equality. In order to 
+computationally check equality over Coq variables, they must first be reified.
 Reification is designed so that if it sees the same variable twice, it will use
 the same constructor to represent both instances. The constructors can be 
 computationally compared, so variables can be compared in reified syntax.
@@ -630,7 +639,7 @@ end.
 \end{lstlisting}
 
 This allows the function that operates over reified expressions to look very
-similar to original exprssion, and also simplifies the proof. The function
+similar to original expression, and also simplifies the proof. The function
 and the proof will now have 3 cases. The first have the same behavior (only reified)
 as the \lstinline|leaf| and \lstinline|node| cases of the original function. The third
 case is the case where \lstinline|as_tree| returns \lstinline|None|. This doesn't
@@ -657,9 +666,9 @@ sound.
 
 These reified functions are an inconvenience and one of the largest
 barriers to easily applying a reflective framework in a setting like
-VST. It is an important open question wheather this is avoidable. Can
-a reflective framework reuse compuations that might operate
-over coq variables without requiring reified functions? 
+VST. It is an important open question weather this is avoidable. Can
+a reflective framework reuse computations that might operate
+over Coq variables without requiring reified functions? 
 
 \chapter{Evaluation}
 
