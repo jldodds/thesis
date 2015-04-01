@@ -59,7 +59,7 @@ Inductive True : Prop :=
   I : True.
 
 Inductive False : Prop
-\begin{lstlisting}
+\end{lstlisting}
 
 So if a Coq program is given something of type \lstinline|Prop|, it
 has no ability to determine what it is, just like if it is given a
@@ -212,9 +212,44 @@ of symmetry in the new goal, and we will have done the same thing we
 did with LTac in a single command.
 
 Why would we ever use a deep embedding when automation is so much
-work? 
+work? The main reason is efficency. While LTac does an operation and
+needs to build a proof object, a proved-sound function that operates on
+a deeply embedded proof goal does an operation and at the same time is
+a (very small) proof ojbect. The example above did a very small amount
+of work in the symmetry function, but such a function could be an
+entire decision procedure. Then we would be able to do a large
+amount of work on a deeply embedded proof term while hardly generating
+any proof object at all. In general, this will be substantially more
+efficient than using LTac, espscially as the size of the
+deeply-embedded statements grows. 
 
-\section{Ltac}
+Another advantage to a deeply embedded logic is that if there is a
+single decision procedure for it that works all in one function, that
+function can be \emph{extracted} and run in Ocaml. This gives the
+performance of an optimized language, with most of the assurance that
+comes with having a proved-sound decision procedure in Coq.
+
+The technique of computational reflection in Coq aims to combine the
+interactivity of a shallow embedding with the efficiecy of a deep
+embedding by moving between the two when it is needed.
+
+\section{Computational reflection}
+
+Computational reflection is the process of translating a shallow
+embedding to a deep embedding, applying a proved-sound function to the
+deep embedding, then evaluating the denotation function to return to
+the shallow embedding. If this is done all in a single step, the user
+will never know that the technique of reflection is being used. That
+means that the efficient, proved-sound decision procedures that can be
+used on deep embeddings can essentially be used as if they are
+tactics, along side all of the other tactics and LTac automation that
+might be built up around a logic. 
+
+The process of translating from a shallow embedding to a deep
+embedding is known as reification. Because Coq programs can't match on
+shallow embeddings, reification must be performed by a
+tactic. Reification leaves us with a deep embedding (or reified
+expression), which we can do computation on in the same way
 
 \chapter{Typechecking C Expressions}
 think about if there is more that needs to be explained
@@ -625,6 +660,8 @@ barriers to easily applying a reflective framework in a setting like
 VST. It is an important open question wheather this is avoidable. Can
 a reflective framework reuse compuations that might operate
 over coq variables without requiring reified functions? 
+
+\chapter{Evaluation}
 
 \chapter{Conclusion}
 
