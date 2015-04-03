@@ -117,16 +117,30 @@ the theorem. To be able to use the theorem effectively though, we need
 to be able to show that the C program will always have a valid
 execution in order to get the property that we want out of CompCert.
 
-On top of that, we aren't 
+If we showed that the C program executed successfully, CompCert would
+guarantee that the assembly code that it outputs has the same behavior
+as the C input. This is an important step, but it can be very hard to 
+determine what a C program is doing just by examining the source code.
+A typical C program doesn't just specify what it is doing, it specifies
+how it is doing it. In C, the specification is relatively low level
+meaning that a program will need more details about how the computation
+is being done than a higher level language. This is part of why C is 
+so successful, the added control allows programmers to write more efficient
+programs, but it can make it much harder to understand what the program
+is actually doing.
 
-One way to be confident that a system is correct is to write a
-mathematical specification of what the program should do. This
-mathematical model is easier to understand because it lacks the
+In order to specify what a program is doing rather than how it is doing
+it we write a mathematical specification of the program should do. This
+mathematical model lacks the
 complexity that a real program needs to work efficiently on a
-computer. Then you can use a \emph{program logic} to show that the program
-actually implements the specification. If you believe that the program
-logic is correct, that means that all you need to understand is the
-mathematical specification, not the more complex program.
+computer. The specification is a new link in the chain above
+the C source code, but it is not attached yet. A 
+\emph{Program Logic} is used to prove that the result
+of executing the C program meets the specification. This program logic
+can be written in Coq, and proved correct using the same specification
+of the C language that CompCert uses. With this proof, the chain
+can be completed from specification all the way to assembly language.
+
 
 \chapter{Computation in Coq}
 
