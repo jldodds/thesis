@@ -35,6 +35,99 @@
 
 \chapter{Introduction}
 
+The C programming language is one of the most commonly used languages
+for writing critical software. C is often used for
+operating systems, embedded systems, and cryptography, as well as
+countless libraries that want great performance and a reasonably
+common interface. Because there is so much critical C code, much of
+the world depends on the correctness of that code for almost every
+aspect of their lives. 
+
+In general, the code we depend on works well, but when it fails it can
+be catastrophic. Space projects that cost hundreds of millions of
+dollars have failed due to software failures, radiation devices with
+software flaws have overdosed cancer patients, nuclear missile
+detection systems have given false positives, and millions of cars have
+been recalled to fix software bugs. Those scenarios are only bugs; Far
+more systems can fail when a malicious user attacks them, especially
+in a time where every aspect of our life contains computers. As an
+example a brand of refrigerators was found to have been taken over to
+send spam email. Developing tools that can increase confidence in C
+programs will help increase confidence in many of these
+vulnerable/critical systems.
+
+To believe that a C program will run correctly we must first believe a number
+of other things. There are a number of components that we will need
+to be able to \emph{trust} in order to trust our C program. need to
+fully understand the program itself, and believe that when executed it
+will have the expected behavior. We also need to
+believe that when the C code is translated to machine language, the
+generated machine language has the same behavior as the original
+program. Finally we need to believe that the machine executing the
+machine language is doing the correct thing. We call the collection of
+things we must trust the \emph{trusted computing base}. In general,
+the larger the trusted computing base is, the harder it is to be
+confident that the program is correct.
+
+The need for trust follows a chain. It starts with the C program at
+the top, the most human understandable part of the chain, and moves
+down to the actual execution of the machine. In order to make the
+trusted computing base as small as possible, we must maximize our
+confidence in every step of the process.
+
+Proof assistants are tools that help to write and check mathematical
+proofs. If you want to believe a classic mathematical proof you need
+to understand the statement of the proof, which is open to ambiguities
+based on assumptions made by the writer, and then believe every single
+step of the proof itself, even steps where the proof author says
+something like ``clearly'' or ``obviously''. This can be an enormous
+burden on the person that needs to understand how the proof was done;
+New proofs can use new techniques that are impenetrable to anyone but
+experts in the specific domain the proof is about. A proof assistant,
+on the other hand, forces proof statements to be written using a set
+of basic, well defined building blocks, making theorem statements
+completely unambiguous. The proof assistant provides tools for proving
+theorems, but those tools don't need to be trusted. All that needs to
+be trusted is a part of the proof assistant that checks the proof when
+it is created. This is advantageous because the proof itself becomes
+irrelevant to someone interested in believing the theorem. All that is
+relevant that the proof assistant successfully checked the proof, and
+that the proof assistant's checker is correct. In other words, the
+trusted base of a theorem proved in a proof assistant is the statement
+of that theorem and the correctness of the checker, but we have very
+strong trust in the correctness of the checker.
+
+Peer review is the technique by which mathematical proofs are judged
+to be correct. A number of people read the proof and if they feel that
+every step in the proof is correct, a consensus might eventually be
+reached that the proof is actually correct. This must be done for
+every theorem that will ever be proved. With a proof assistant though,
+all that needs to be peer reviewed is the statement of the theorem,
+which should be understandable to anyone that is interested in its
+results, and the proof checker, which is of interest to anyone who
+wants to believe a proof. So instead of a subset of a specific
+community reviewing any given proof, a proof assistant is reviewed by
+a good fraction of the entire community that is interested in proofs.
+
+The CompCert compiler gives us a proof that if it is given a valid C
+program, it will generate assembly code with the same behavior as the
+C program. This proof is checked by the Coq proof assistant, meaning
+that its trusted base is the Coq proof checker, and the statement of
+the theorem. To be able to use the theorem effectively though, we need
+to be able to show that the C program will always have a valid
+execution in order to get the property that we want out of CompCert.
+
+On top of that, we aren't 
+
+One way to be confident that a system is correct is to write a
+mathematical specification of what the program should do. This
+mathematical model is easier to understand because it lacks the
+complexity that a real program needs to work efficiently on a
+computer. Then you can use a \emph{program logic} to show that the program
+actually implements the specification. If you believe that the program
+logic is correct, that means that all you need to understand is the
+mathematical specification, not the more complex program.
+
 \chapter{Computation in Coq}
 
 Coq's functional programming language Gallina has the ability to match inductive
