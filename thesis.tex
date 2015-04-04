@@ -141,6 +141,19 @@ can be written in Coq, and proved correct using the same specification
 of the C language that CompCert uses. With this proof, the chain
 can be completed from specification all the way to assembly language.
 
+The combination of the tools mentioned here gives proof that the
+assembly code that the machine executes has the same behavior as
+an abstract mathematical specification. To believe that the proof is
+correct, all we need to trust is the mathematical specification itself
+and the theorem prover's proof checker. 
+
+There is still a significant amount of work to do if you wish to prove
+a program correct. First you must create an accurate specification which
+can be difficult, especially for complex programs. Then the process
+of proving a program meets a specification using a program logic can
+be very involved. The method our program uses is to be applied in the
+forward direction. 
+
 
 \chapter{Computation in Coq}
 
