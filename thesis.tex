@@ -430,55 +430,66 @@ precondition.
 
 \chapter{Typechecking C Expressions}
 
-The operational semantics has a partial
-inductive relation $\rho \vdash e\Downarrow v$
-for evaluation of an ($r$-value) expression $e$ to a value $v$
-in environment $\rho$,
-and another relation $\rho \vdash e\Downarrow_l v$
-for the $l$-value interpretation of an expression.
-These relations are inconvenient in program proof,
-as we would frequently need existentials 
-$\exists v.~\rho \vdash e\Downarrow_l v$,
-and proofs of often trivial side-conditions that $v$ exists.
+The CompCert operational semantics has a partial inductive relation
+$\rho \vdash e\Downarrow v$ for evaluation of an ($r$-value)
+expression $e$ to a value $v$ in environment $\rho$, and another
+relation $\rho \vdash e\Downarrow_l v$ for the $l$-value
+interpretation of an expression.  These relations are inconvenient in
+program proof, as we would frequently need existential variables
+$\exists v.~\rho \vdash e\Downarrow_l v$, and proofs of often trivial
+side-conditions that $v$ exists.
 
-C's type system is unsound---type-checking does not
-guarantee safe execution.  So our type-checker for C
-\cite[Chapter 25]{appel14:plcc}
-calculates minimal nontrivial separation-logic assertions
-required for safe evaluation of expressions.
-Its type-context $\Delta$ also 
-(conservatively) tracks the initialization status of all variables;
-soundness of our typechecker guarantees
-that all initialized variables contain
-defined values of the right type.
+C's type system is unsound---type-checking does not guarantee safe
+execution. In general, it is impossible to have a sound typechecker
+for C because the safe execution of C programs depends on dynamic
+properties of the program. Other languages have error handling
+mechanisms built into their semantics (such as exceptions). A sound
+typechecker guarantees that the program will always have an execution
+defined by the semantics, so a language with exceptions for run-time
+errors can have a sound typechecker, as can a language without
+run-time errors. 
 
-This allows us to eliminate the existentials connected to
-expression evaluation.
-We define (total) functions \lstinline|eval_expr| and 
-\lstinline|eval_lvalue| that will give the same result as the operational
-semantics relation, provided the expression or lvalue typechecks. 
-% If
-% an expression doesn't typecheck, our logic won't make any statements about
-% it. We believe that our typechecker is mostly complete, but don't have
-% a completeness proof.
+To guarantee that a C program always has an execution that is defined
+by the C semantics our type-checker for C \cite[Chapter
+25]{appel14:plcc} \lstinline|tc_expr ($\Delta$ : tycontext) (e : expr) : tc_assert|
 
-Our typechecker is written in two layers: a translation
-from type contexts and C expressions to \emph{syntactic} type-checking assertions,
-and a denotation function from this syntax into Coq propositions
-\lstinline|Prop|.
-We can therefore \emph{computationally} simplify assertions
-even before taking their denotation.
-Consider the expression \lstinline{3 + x}; the precondition
-needed to evaluate this is 
-\lstinline{True /\ initialized(_x)}. The \lstinline|True| is redundant,
-but if this assertion were generated
-directly, no more computational progress can be made. Instead 
-our context $\Delta$ records that $x$ is an initialized integer variable
-and computes the simplified syntactic TC-assertion
- \lstinline|tc_TT|, whose denotation is \lstinline|True|.
-This simplification improves performance even when using Ltac. We further
-improve performance even in Ltac by using computation to simplify
-our separation logic predicates.
+ calculates minimal nontrivial separation-logic
+assertions required for safe evaluation of expressions.  It does this
+with the help of a type-context $\Delta$ that (conservatively) tracks the
+initialization status of all variables; soundness of the program logic
+guarantees that all initialized variables contain defined values of
+the right type. Because the typechecker will be a function whose
+result we will use in our program logic, it is important that all of
+its arguments will be deeply embedded. The expression comes from a
+concrete compiled program, so we know that it will be made completely
+of constructors. We chose the definition of the type context to be a
+computationally efficient mapping structure indexed by program
+variables that will always have concrete values. This means that we
+can be confident that a call to \lstinline|tc_expr| will always compute
+to an assertion.
+
+
+If we know that an expression will successfully evaluate, we can
+eliminate the existentials connected to expression evaluation by
+defining (total) functions \lstinline|eval_expr| and
+\lstinline|eval_lvalue| that will give the same result as the
+operational semantics relation.
+
+Our typechecker is written in two layers: a translation from type
+contexts and C expressions to \emph{syntactic} type-checking
+assertions, and a denotation function from this syntax into Coq
+propositions \lstinline|Prop|.  We can therefore
+\emph{computationally} simplify assertions even before taking their
+denotation.  Consider the expression \lstinline{3 + x}; the
+precondition needed to evaluate this is 
+\lstinline|True /\ initialized(_x)|. The \lstinline|True| is redundant, but if this
+assertion were generated directly, no more computational progress can
+be made. Instead our context $\Delta$ records that $x$ is an
+initialized integer variable and computes the simplified syntactic
+TC-assertion \lstinline|tc_TT|, whose denotation is \lstinline|True|.
+This simplification improves performance even when using Ltac. We
+further improve performance even in Ltac by using computation to
+simplify our separation logic predicates.
 
 
 \chapter{Canonical Forms for Assertions}
@@ -492,29 +503,29 @@ of symbolic execution.
 \section{Semi-Canonical Form}
 
 We previously described \cite{appel14:plcc} assertions in the form
-~~\lstinline{PROP  $~P$ LOCAL  $~Q$ SEP  $~R$}. 
-Here each item in \lstinline|$P$:list prop| is a pure assertion that 
-doesn't refer to the program state. \lstinline|$Q$: list (environ -> prop)|
-contains assertions that can reason about local variables. 
-and \lstinline|$R$: list (environ -> mpred)| has spatial assertions that
-can reason about both local variables and memory. 
-$\PROP$ folds conjunction over the elements of $P$, $\LOCAL$
-folds lifted conjunction (
-\lstinline|`and : (environ -> Prop)-> (environ -> Prop) -> (environ -> Prop))|,
-and $\SEP$ folds the separation logic \lstinline|*|, or separating conjunction
-operator. $P$, $Q$, and $R$, are represented as lists because, particularly 
-in the case of $\SEP$, it is often convenient to refer to the $n$th 
-conjunct. This is much easier to implement when our assertion is a list. 
-We say that assertions in this form are in semi-canonical form. 
+~~\lstinline{PROP $~P$ LOCAL $~Q$ SEP $~R$}.  Here each item in
+\lstinline|$P$:list prop| is a pure assertion that doesn't refer to
+the program state. \lstinline|$Q$: list (environ -> prop)| contains
+assertions that can reason about local variables.  and 
+\lstinline|$R$: list (environ -> mpred)| has spatial assertions that can reason about
+both local variables and memory.  $\PROP$ folds conjunction over the
+elements of $P$, $\LOCAL$ folds lifted conjunction ( 
+\lstinline|`and : (environ -> Prop)-> (environ -> Prop) -> (environ -> Prop))|, and
+$\SEP$ folds the separation logic \lstinline|*|, or separating
+conjunction operator. $P$, $Q$, and $R$, are represented as lists
+because, particularly in the case of $\SEP$, it is often convenient to
+refer to the $n$th conjunct. This is much easier to implement when our
+assertion is a list.  We say that assertions in this form are in
+semi-canonical form.
 
-At the lowest level, the Verifiable C 
-logic rules are completely unaware of any
-sort of canonical form. They generally refer to assertions as single
-variables, using entailments to constrain them rather than imposing
-syntactic requirements on them. The Floyd automation system contains
-higher level lemmas that require assertions to be in semi-canonical
-form, but also guarantee that the side conditions that result from
-using the rules will be in semi-canonical form. 
+At the lowest level, the Verifiable C logic rules are completely
+unaware of any sort of canonical form. They generally refer to
+assertions as single variables, using entailments to constrain them
+rather than imposing syntactic requirements on them. The Floyd
+automation system contains higher level lemmas that require assertions
+to be in semi-canonical form, but also guarantee that the side
+conditions that result from using the rules will be in semi-canonical
+form.
 
 \subsection{Substitution in semi-canonical form}
 
@@ -822,9 +833,9 @@ denotation equal to \lstinline|tc_expr| applied to the same
 arguments. The function \lstinline|tc_expr_reif| can compute while no
 progress can be made on \lstinline|ftc_expr|.  We put the denotation
 function on both sides of the function because this allows us to write
-an RTac that finds reified terms that look like \lstinline|ftc_expr e
-Delta| (uncomputable) and replace them with a term \lstinline|tc_expr
-e Delta|. This is important because we might want to run some other
+an RTac that finds reified terms that look like \lstinline|ftc_expr e Delta|
+(uncomputable) and replace them with a term 
+\lstinline|tc_expr e Delta|. This is important because we might want to run some other
 RTac on the result of the typechecking. Possibly an entailment solver
 to discharge any remaining conditions.
 
