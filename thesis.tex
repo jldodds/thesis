@@ -36,38 +36,37 @@
 \chapter{Introduction}
 
 The C programming language is one of the most commonly used languages
-for writing critical software. C is often used for
-operating systems, embedded systems, and cryptography, as well as
-countless libraries that want great performance and a reasonably
-common interface. Because there is so much critical C code, much of
-the world depends on the correctness of that code for almost every
-aspect of their lives. 
+for writing critical software. C is often used for operating systems,
+embedded systems, and cryptography, as well as countless libraries
+that want great performance and a reasonably common interface. Because
+there is so much critical C code, much of the world depends on the
+correctness of that code for almost every aspect of their lives.
 
 In general, the code we depend on works well, but when it fails it can
 be catastrophic. Space projects that cost hundreds of millions of
 dollars have failed due to software failures, radiation devices with
 software flaws have overdosed cancer patients, nuclear missile
-detection systems have given false positives, and millions of cars have
-been recalled to fix software bugs. Those scenarios are only bugs; Far
-more systems can fail when a malicious user attacks them, especially
-in a time where every aspect of our life contains computers. As an
-example a brand of refrigerators was found to have been taken over to
-send spam email. Developing tools that can increase confidence in C
-programs will help increase confidence in many of these
-vulnerable/critical systems.
+detection systems have given false positives, and millions of cars
+have been recalled to fix software bugs. Those scenarios are only
+bugs; Far more systems can fail when a malicious user attacks them,
+especially in a time where every aspect of our life contains
+computers. As an example a brand of refrigerators was found to have
+been taken over to send spam email. Developing tools that can increase
+confidence in C programs will help increase confidence in many of
+these vulnerable/critical systems.
 
-To believe that a C program will run correctly we must first believe a number
-of other things. There are a number of components that we will need
-to be able to \emph{trust} in order to trust our C program. need to
-fully understand the program itself, and believe that when executed it
-will have the expected behavior. We also need to
-believe that when the C code is translated to machine language, the
-generated machine language has the same behavior as the original
-program. Finally we need to believe that the machine executing the
-machine language is doing the correct thing. We call the collection of
-things we must trust the \emph{trusted computing base}. In general,
-the larger the trusted computing base is, the harder it is to be
-confident that the program is correct.
+To believe that a C program will run correctly we must first believe a
+number of other things. There are a number of components that we will
+need to be able to \emph{trust} in order to trust our C program. need
+to fully understand the program itself, and believe that when executed
+it will have the expected behavior. We also need to believe that when
+the C code is translated to machine language, the generated machine
+language has the same behavior as the original program. Finally we
+need to believe that the machine executing the machine language is
+doing the correct thing. We call the collection of things we must
+trust the \emph{trusted computing base}. In general, the larger the
+trusted computing base is, the harder it is to be confident that the
+program is correct.
 
 The need for trust follows a chain. It starts with the C program at
 the top, the most human understandable part of the chain, and moves
@@ -109,56 +108,91 @@ wants to believe a proof. So instead of a subset of a specific
 community reviewing any given proof, a proof assistant is reviewed by
 a good fraction of the entire community that is interested in proofs.
 
-The CompCert compiler gives us a proof that if it is given a valid C
+A verified compiler gives us a proof that if it is given a valid C
 program, it will generate assembly code with the same behavior as the
 C program. This proof is checked by the Coq proof assistant, meaning
 that its trusted base is the Coq proof checker, and the statement of
 the theorem. To be able to use the theorem effectively though, we need
 to be able to show that the C program will always have a valid
-execution in order to get the property that we want out of CompCert.
+execution.
 
-If we showed that the C program executed successfully, CompCert would
-guarantee that the assembly code that it outputs has the same behavior
-as the C input. This is an important step, but it can be very hard to 
-determine what a C program is doing just by examining the source code.
-A typical C program doesn't just specify what it is doing, it specifies
-how it is doing it. In C, the specification is relatively low level
-meaning that a program will need more details about how the computation
-is being done than a higher level language. This is part of why C is 
-so successful, the added control allows programmers to write more efficient
-programs, but it can make it much harder to understand what the program
-is actually doing.
+If we showed that the C program executed successfully, the verified
+compiler would guarantee that the assembly code that it outputs has
+the same behavior as the C input. This is an important step, but it
+can be very hard to determine what a C program is doing just by
+examining the source code.  A typical C program doesn't just specify
+what it is doing, it specifies how it is doing it. In C, the
+specification is relatively low level meaning that a program will need
+more details about how the computation is being done than a higher
+level language. This is part of why C is so successful, the added
+control allows programmers to write more efficient programs, but it
+can make it much harder to understand what the program is actually
+doing.
 
-In order to specify what a program is doing rather than how it is doing
-it we write a mathematical specification of the program should do. This
-mathematical model lacks the
-complexity that a real program needs to work efficiently on a
-computer. The specification is a new link in the chain above
-the C source code, but it is not attached yet. A 
-\emph{Program Logic} is used to prove that the result
-of executing the C program meets the specification. This program logic
+In order to specify what a program is doing rather than how it is
+doing it we write a mathematical specification of the program should
+do. This mathematical model lacks the complexity that a real program
+needs to work efficiently on a computer. The specification is a new
+link in the chain above the C source code, but it is not attached
+yet. A \emph{Program Logic} is used to prove that the result of
+executing the C program meets the specification. This program logic
 can be written in Coq, and proved correct using the same specification
-of the C language that CompCert uses. With this proof, the chain
-can be completed from specification all the way to assembly language.
+of the C language that CompCert uses. With this proof, the chain can
+be completed from specification all the way to assembly language.
 
 The combination of the tools mentioned here gives proof that the
-assembly code that the machine executes has the same behavior as
-an abstract mathematical specification. To believe that the proof is
+assembly code that the machine executes has the same behavior as an
+abstract mathematical specification. To believe that the proof is
 correct, all we need to trust is the mathematical specification itself
-and the theorem prover's proof checker. 
+and the theorem proverb'sproof checker.
 
 There is still a significant amount of work to do if you wish to prove
-a program correct. First you must create an accurate specification which
-can be difficult, especially for complex programs. Then the process
-of proving a program meets a specification using a program logic can
-be very involved. The method our program uses is to be applied in the
-forward direction. 
+a program correct. First you must create an accurate specification
+which can be difficult, especially for complex programs. Then the
+process of proving a program meets a specification using a program
+logic can be very involved. Program logics implemented in proof
+assistants are often \emph{interactive}. To build a proof in an
+interactive program logic, you examine a proof state and then perform
+an action to manipulate the state. The action will result in a new
+proof state, which you can manipulate again, and the process repeats
+until the proof is completed.
+
+One of the biggest problems that complex program logics run into is
+that they are slow. This means that the time between giving input and
+receiving a new proof state can be long. Writing a proof in a program
+logic is already difficult work, requiring intimate knowledge of the
+program, the programming language, and the logic. Having to wait
+between each step in a proof while the program does computation
+multiplies the difficulty of the proof. This is especially true
+because proof development is often experimental in nature. The first
+step is to make a good guess at a specification. If the proof gets
+stuck, either the specification or the program needs to change. If
+either of those change, the proof will need to start over from the
+beginning. A slow program logic can drastically limit the number of
+manipulations of the program or the specification that can be done in
+any given stretch of time. If the time is long enough, it can also be
+hard for the person doing the proof to remember what they were working
+on when they last made progress on the proof.
+
+This thesis shows how a complex programming logic for proving the
+correctness of C programs can be made significantly faster without any
+noticeable impact on the proving experience. This results in a logic
+that is significantly more intuitive and usable, and is a vital step
+in making the program logic a widely usable tool.
+
+Many of the parts discussed so far are existing work: The proof
+assistant we have chosen to use is Coq, Leroy's CompCert \cite{} is a
+C compiler implemented and proved sound in Coq, and Appel et al. have
+created the Verified Software Toolchain to give secure chain from
+specification language to assembly including a specification logic and
+a program logic to relate the specification to a CompCert C program.
 
 
 \chapter{Computation in Coq}
 
-Coq's functional programming language Gallina has the ability to match inductive
-data-structures. The type boolean, for example can be defined as
+The Coq proof assistant has a built in functional programming language
+called Gallina with the ability to match inductive data-structures. The type
+boolean, for example can be defined:
 
 \begin{lstlisting}
 Inductive boolean :=
@@ -166,17 +200,18 @@ Inductive boolean :=
 | false.
 \end{lstlisting}
 
-so \lstinline|boolean| is a type that can be constructed by either \lstinline|true| or \lstinline|false|
-and when given a \lstinline|boolean|, a function can decide which of the two it is. Now we can look 
-at the definition of \lstinline|True| and \lstinline|False| (capitalized), which are in the type 
+so \lstinline|boolean| is a type that can be constructed by either
+\lstinline|true| or \lstinline|false| and when given a
+\lstinline|boolean|, a function can decide which of the two it is. Now
+we can look at the definition of \lstinline|True| and
+\lstinline|False| (capitalized), which are in the type
 \lstinline|Prop| instead of \lstinline|bool|. Prop is not an
 inductively defined type in Coq, so it can't be matched
 against. Instead the types of \lstinline|True| and \lstinline|False|
 are
 
 \begin{lstlisting}
-Inductive True : Prop :=
-  I : True.
+Inductive True : Prop := I : True.
 
 Inductive False : Prop
 \end{lstlisting}
@@ -377,24 +412,74 @@ shallow embedding that is easy for the user to view and work with.
 
 %graphic from prefpo 
 
-Many shallow embeddings, including VST, have parts that are generally
-made up completely of constructors. In most program logics, for
-example, the programming language will not be Coq's programming
-language, but a deep embedding of the syntax of the language along
-with a semantics that describes the execution of that syntax in the
-state of the programming language. Because the syntax is a deep
-embedding, it is possible to write Coq functions that reason about
-them, and then prove those functions sound (usually with respect to
-the operational semantics). This is a type of reflection that doesn't
-require reification at all, making it more efficient and allowing it
-to fit cleanly into the shallowly embedded program logic. One such
-example in VST is the typechecker which is used to show that
-expressions in the program successfully evaluate given the state
-represented by the precondition.
+Many shallow embeddings, including VST, have parts that are made up
+completely of constructors. In most program logics, for example, the
+programming language will not be Coq's programming language, but a
+deep embedding of the syntax of the language along with a semantics
+that describes the execution of that syntax in the state of the
+programming language. Because the syntax is a deep embedding, it is
+possible to write Coq functions that reason about them, and then prove
+those functions sound (usually with respect to the operational
+semantics). This is a type of reflection that doesn't require
+reification at all, making it more efficient and allowing it to fit
+cleanly into the shallowly embedded program logic. One such example in
+VST is the typechecker which is used to show that expressions in the
+program successfully evaluate given the state represented by the
+precondition.
 
 
 \chapter{Typechecking C Expressions}
-think about if there is more that needs to be explained
+
+The operational semantics has a partial
+inductive relation $\rho \vdash e\Downarrow v$
+for evaluation of an ($r$-value) expression $e$ to a value $v$
+in environment $\rho$,
+and another relation $\rho \vdash e\Downarrow_l v$
+for the $l$-value interpretation of an expression.
+These relations are inconvenient in program proof,
+as we would frequently need existentials 
+$\exists v.~\rho \vdash e\Downarrow_l v$,
+and proofs of often trivial side-conditions that $v$ exists.
+
+C's type system is unsound---type-checking does not
+guarantee safe execution.  So our type-checker for C
+\cite[Chapter 25]{appel14:plcc}
+calculates minimal nontrivial separation-logic assertions
+required for safe evaluation of expressions.
+Its type-context $\Delta$ also 
+(conservatively) tracks the initialization status of all variables;
+soundness of our typechecker guarantees
+that all initialized variables contain
+defined values of the right type.
+
+This allows us to eliminate the existentials connected to
+expression evaluation.
+We define (total) functions \lstinline|eval_expr| and 
+\lstinline|eval_lvalue| that will give the same result as the operational
+semantics relation, provided the expression or lvalue typechecks. 
+% If
+% an expression doesn't typecheck, our logic won't make any statements about
+% it. We believe that our typechecker is mostly complete, but don't have
+% a completeness proof.
+
+Our typechecker is written in two layers: a translation
+from type contexts and C expressions to \emph{syntactic} type-checking assertions,
+and a denotation function from this syntax into Coq propositions
+\lstinline|Prop|.
+We can therefore \emph{computationally} simplify assertions
+even before taking their denotation.
+Consider the expression \lstinline{3 + x}; the precondition
+needed to evaluate this is 
+\lstinline{True /\ initialized(_x)}. The \lstinline|True| is redundant,
+but if this assertion were generated
+directly, no more computational progress can be made. Instead 
+our context $\Delta$ records that $x$ is an initialized integer variable
+and computes the simplified syntactic TC-assertion
+ \lstinline|tc_TT|, whose denotation is \lstinline|True|.
+This simplification improves performance even when using Ltac. We further
+improve performance even in Ltac by using computation to simplify
+our separation logic predicates.
+
 
 \chapter{Canonical Forms for Assertions}
 
@@ -454,20 +539,19 @@ Axiom semax_set_forward: $~~$forall $\Delta$ ($P$: environ->mpred) ($x$: ident) 
                     && subst $x$ (`old) $P$)).
 \end{lstlisting}
 
-There are two substitutions here, used to replace any occurrences of the
-variable \lstinline|x| that might have occurred in either the precondition
-or the expression being assigned into \lstinline|x|. 
+There are two substitutions here, used to replace any occurrences of
+the variable \lstinline|x| that might have occurred in either the
+precondition or the expression being assigned into \lstinline|x|.
 Although subst is a function, in practice it can never be computed.
-This is because it works by updating the environment that $P$
-refers to. During symbolic execution, however, the environment is always
+This is because it works by updating the environment that $P$ refers
+to. During symbolic execution, however, the environment is always
 abstract, constrained only by the precondition, which means there is
-no datastructure to be updated. This means that the definition of 
-\lstinline|subst| that appears in Verifiable C isn't directly 
-useful to proof automation. It can't compute so without special
-lemmas and tactics it will appear in side conditions. To deal with
-this the Floyd system has an autorewrite database that lets it push
-subst through functions that won't be affected by the substitution. For
-example 
+no datastructure to be updated. This means that the definition of
+\lstinline|subst| that appears in Verifiable C isn't directly useful
+to proof automation. It can't compute so without special lemmas and
+tactics it will appear in side conditions. To deal with this the Floyd
+system has an autorewrite database that lets it push subst through
+functions that won't be affected by the substitution. For example
 
 \begin{lstlisting}
 Lemma subst_sepcon: forall i v (P Q: environ->mpred),
@@ -503,68 +587,64 @@ Definition closed_wrt_vars {B} (S: ident -> Prop) (F: environ -> B) : Prop :=
      F rho = F (mkEnviron (ge_of rho) (ve_of rho) te').
 \end{lstlisting}
 
-Generally we give \lstinline|S| as Coq equality with a specific identifier. 
-What \lstinline|closed_wrt_vars| means, then, is that if \lstinline|F|
-is supplied an environment that is the same at all locations but 
-the identifier(s) \lstinline|i| that satisfy \lstinline|S|, the
-result of \lstinline|F| will be the same. That means that if we know
-\lstinline|closed_wrt_vars (eq x) (e)|, we can easily prove
-\lstinline|subst x _ e = e|. More intuitively, if an expression
-doesn't contain a variable, a substitution on that variable
-won't change the expression. 
+Generally we give \lstinline|S| as Coq equality with a specific
+identifier.  What \lstinline|closed_wrt_vars| means, then, is that if
+\lstinline|F| is supplied an environment that is the same at all
+locations but the identifier(s) \lstinline|i| that satisfy
+\lstinline|S|, the result of \lstinline|F| will be the same. That
+means that if we know \lstinline|closed_wrt_vars (eq x) (e)|, we can
+easily prove \lstinline|subst x _ e = e|. More intuitively, if an
+expression doesn't contain a variable, a substitution on that variable
+won't change the expression.
 
 Floyd has a set lemma that takes advantage of this, stating that if
-the precondition and the expression in the assignment
-are closed wrt the variable being assigned into, no substitutions are
-needed, but there are numerous cases where this rule doesn't apply, 
-so the substitution will still appear. 
+the precondition and the expression in the assignment are closed wrt
+the variable being assigned into, no substitutions are needed, but
+there are numerous cases where this rule doesn't apply, so the
+substitution will still appear.
 
 \section{Canonical Form}
 
-The reason that substitutions are difficult, and that they need
-to be semantic is because there is no \emph{syntactic} restriction
-on where any individual identifier can appear within an assertion.
-Canonical form imposes such a restriction, and in doing so, eliminates
-the need for semantic substitution, replacing it with a more
-efficient and convenient computational syntactic substitution.
+The reason that substitutions are difficult, and that they need to be
+semantic is because there is no \emph{syntactic} restriction on where
+any individual identifier can appear within an assertion.  Canonical
+form imposes such a restriction, and in doing so, eliminates the need
+for semantic substitution, replacing it with a more efficient and
+convenient computational syntactic substitution.
 
-One limitation of canonical form is that we no longer allow
-references to C program variables in the part of the assertion that
-contains spatial assertions. If these assertions wish to talk
-about those variables, they must do it indirectly using a Coq variable.
-This means that only the $\LOCAL$ part of the assertion has the ability
-to reference local variables. This still doesn't give us the ability to
+One limitation of canonical form is that we no longer allow references
+to C program variables in the part of the assertion that contains
+spatial assertions. If these assertions wish to talk about those
+variables, they must do it indirectly using a Coq variable.  This
+means that only the $\LOCAL$ part of the assertion has the ability to
+reference local variables. This still doesn't give us the ability to
 syntactically locate each reference though, so we restrict $\LOCAL$
-further. The restriction we use is to change the entirety of 
-$\LOCAL$ into two computational maps from identifiers to values.
-One of these represents temporary or nonadressable variables, and 
-the other represents addressable variables. Each mapping represents
-an equality between the evaluation of an identifier in the
-environment, and the value it maps to. The mappings are represented by PTrees,
-an efficient
-computational data structure in the Coq standard library. 
+further. The restriction we use is to change the entirety of $\LOCAL$
+into two computational maps from identifiers to values.  One of these
+represents temporary or nonadressable variables, and the other
+represents addressable variables. Each mapping represents an equality
+between the evaluation of an identifier in the environment, and the
+value it maps to. The mappings are represented by PTrees, an efficient
+computational data structure in the Coq standard library.
 
-With these two changes we get \emph{canonical form.}
-Let \lstinline{$T_1$: PTree val} be a computational map from
-C program identifiers to C values,
-representing the current values of the temporary local
-variables of the current program state. Let
-\lstinline{$T_2$: PTree (type*val)}
-be a map from identifiers to \lstinline{type*val}
-representing the addresses of addressable local variables.
-Then \lstinline{localD $T_1$ $T_2$: list(environ->Prop)}
-means a list of assertions about the contents of the \lstinline{environ},
-the nonmemory portion of the program state;
-we do not need \emph{arbitrary} 
-assertions of type \lstinline{list(environ->Prop)}.
+With these two changes we get \emph{canonical form.}  Let
+\lstinline{$T_1$: PTree val} be a computational map from C program
+identifiers to C values, representing the current values of the
+temporary local variables of the current program state. Let
+\lstinline{$T_2$: PTree (type*val)} be a map from identifiers to
+\lstinline{type*val} representing the addresses of addressable local
+variables.  Then \lstinline{localD $T_1$ $T_2$: list(environ->Prop)}
+means a list of assertions about the contents of the
+\lstinline{environ}, the nonmemory portion of the program state; we do
+not need \emph{arbitrary} assertions of type
+\lstinline{list(environ->Prop)}.
 
-\lstinline{localD} is a \emph{denotation function},
-reflecting the syntactic (computationally oriented) $T_1$ and $T_2$
-back into our semantic world.  In symbolic execution
-and efficient entailment solving, we operate directly on 
-$T_1$ and $T_2$, reflecting the results back only when the 
-less efficient (but easier to understand) semantic view is
-needed by the user. Now a full assertion is:
+\lstinline{localD} is a \emph{denotation function}, reflecting the
+syntactic (computationally oriented) $T_1$ and $T_2$ back into our
+semantic world.  In symbolic execution and efficient entailment
+solving, we operate directly on $T_1$ and $T_2$, reflecting the
+results back only when the less efficient (but easier to understand)
+semantic view is needed by the user. Now a full assertion is:
 
 \begin{lstlisting}
 assertD $P$ (localD $T_1$ $T_2$) $R$ : environ->mpred
@@ -573,16 +653,16 @@ $P$ : list prop$\qquad$ $T_1$ : PTree val$\qquad$ $T_2$ : PTree (type * val)$\qq
 
 \subsection{Substitution in Canonical Form}
 
-Substitution in this assertion is 
-as simple as adding/replacing a mapping in $T_1$ or $T_2$. To see why imagine
-that we are doing a substitution on a temporary variable $x$. 
-\lstinline|$P$ : list prop| and \lstinline|$R$ : list mpred| don't
-refer to an environment, so they are trivially closed wrt.
-$x$. This leaves $T_1$ and $T_2$. The variable $x$
-is a temporary variable, so we know $T_2$ is closed wrt. $x$.
-The map $T_1$, however, might have a reference to $x$, meaning
-we actually need to do a substitution, making sure to replace every reference
-to that variable. One of the requirements of a Coq map is:
+Substitution in this assertion is as simple as adding/replacing a
+mapping in $T_1$ or $T_2$. To see why imagine that we are doing a
+substitution on a temporary variable $x$.  \lstinline|$P$ : list prop|
+and \lstinline|$R$ : list mpred| don't refer to an environment, so
+they are trivially closed wrt.  $x$. This leaves $T_1$ and $T_2$. The
+variable $x$ is a temporary variable, so we know $T_2$ is closed
+wrt. $x$.  The map $T_1$, however, might have a reference to $x$,
+meaning we actually need to do a substitution, making sure to replace
+every reference to that variable. One of the requirements of a Coq map
+is:
 
 \begin{lstlisting}
 Axiom PTree.gss
@@ -590,23 +670,24 @@ Axiom PTree.gss
        PTree.get (PTree.set i x m) i = Some x
 \end{lstlisting}
 
-This means that if we update $x$ in some PTree, the old
-mapping of $x$ will no longer exist, which is the exact
-definition we want from a substitution. That is how you do a substitution
-in an assertion, but we still need to do substitution in the arbitrary
-C expression that appears in the assignment statement and turn that expression
-into a value. It is simple enough to turn a C expression
-into an \lstinline|environ->val| using the \lstinline|eval_expr| function
-discussed in \ref{}, but that expression could have references to identifiers,
-which we can't have if we want syntactic substitution. Instead we can write
-a different version of \lstinline|eval_expr| called 
-\lstinline|msubst_eval_expr|. The only difference between the two functions
-is that when \lstinline|msubst_eval_expr| needs to evaluate a variable it
-doesn't do it in and environment. Instead, it performs the lookup in 
-PTrees $T_1$ or $T_2$ mentioned earlier. In other words, if
-\lstinline|eval_expr| evaluates an expression in an environment, 
-\lstinline|msubst_eval_expr| symbolically evaluates an expression
-in an assertion. This symbolic evaluation is partial because there might
+This means that if we update $x$ in some PTree, the old mapping of $x$
+will no longer exist, which is the exact definition we want from a
+substitution. That is how you do a substitution in an assertion, but
+we still need to do substitution in the arbitrary C expression that
+appears in the assignment statement and turn that expression into a
+value. It is simple enough to turn a C expression into an
+\lstinline|environ->val| using the \lstinline|eval_expr| function
+discussed in \ref{}, but that expression could have references to
+identifiers, which we can't have if we want syntactic
+substitution. Instead we can write a different version of
+\lstinline|eval_expr| called \lstinline|msubst_eval_expr|. The only
+difference between the two functions is that when
+\lstinline|msubst_eval_expr| needs to evaluate a variable it doesn't
+do it in and environment. Instead, it performs the lookup in PTrees
+$T_1$ or $T_2$ mentioned earlier. In other words, if
+\lstinline|eval_expr| evaluates an expression in an environment,
+\lstinline|msubst_eval_expr| symbolically evaluates an expression in
+an assertion. This symbolic evaluation is partial because there might
 not be any information about a variable in the assertion. So in our
 lemma we require \lstinline|msubst_eval_expr| to succeed:
 
@@ -620,29 +701,31 @@ Axiom semax_PTree_set: $~~$forall $\Delta$ id P T1 T2 R $e$ v,
     (normal_ret_assert (assertD P (localD (PTree.set id v T1) T2) R)).
 \end{lstlisting}
 
-What that means is that for this lemma to be used, the precondition must
-have mappings for every variable that appears in $e$. The previous 
-lemma didn't require this because it was able to use \lstinline|eval_expr|
-wherever it wanted to without requiring a complete, successful, symbolic
-execution. This still works for proofs because \lstinline|`eval_expr $e$|
-might eventually simplify to \lstinline|`eval_id $x$|, which could appear
-in other places in the assertion. 
+What that means is that for this lemma to be used, the precondition
+must have mappings for every variable that appears in $e$. The
+previous lemma didn't require this because it was able to use
+\lstinline|eval_expr| wherever it wanted to without requiring a
+complete, successful, symbolic execution. This still works for proofs
+because \lstinline|`eval_expr $e$| might eventually simplify to
+\lstinline|`eval_id $x$|, which could appear in other places in the
+assertion.
 
 \lstinline|semax_PTree_set| also doesn't have an existential. This
-makes things simpler for the user and the proof automation. The existential
-for the old value isn't terribly inconvenient on it's own, it can be 
-moved to the outside of the triple and introduced without much difficulty,
-especially because it's location in the precondition is consistent. The
-difficulty comes when choosing what to name the introduced variable. The
-solution in the tactics is to allow the user to specify names with the name
-tactic. Using \lstinline|name y _y|) tells the automation that values
-associated with variable \lstinline|_y| should automatically be named
-\lstinline|y| or \lstinline|y0|, \lstinline|y1|, \ldots if it isn't available.
-This is a decent solution but it puts a hypothesis above the line, adding
-to what can already be a long list of hypotheses. It is also inconvenient
+makes things simpler for the user and the proof automation. The
+existential for the old value isn't terribly inconvenient on it's own,
+it can be moved to the outside of the triple and introduced without
+much difficulty, especially because it's location in the precondition
+is consistent. The difficulty comes when choosing what to name the
+introduced variable. The solution in the tactics is to allow the user
+to specify names with the name tactic. Using \lstinline|name y _y|)
+tells the automation that values associated with variable
+\lstinline|_y| should automatically be named \lstinline|y| or
+\lstinline|y0|, \lstinline|y1|, \ldots if it isn't available.  This is
+a decent solution but it puts a hypothesis above the line, adding to
+what can already be a long list of hypotheses. It is also inconvenient
 in programs that make multiple assignments into the same variable. The
 following program is an example of what you might see without improved
-tactics or user cleanup: 
+tactics or user cleanup:
 
 \begin{lstlisting}
 {`eq (eval_id _x) x}
@@ -655,15 +738,15 @@ x = x+2;
 
 
 
-Semi-canonical form is very convenient for the user when \emph{writing}
-assertions. The list notation is great for combining 
-assertions without having to remember the exact conjunction that
-must be used for each part. It also allows the $\LOCAL$ to remain
-small, because if there is a variable the user knows nothing
-about, there is no need to add it to the locals. It is less convenient
-when moving through a proof of a program. It can introduce
-existentials and substitutions that are slow to simplify, or sometimes
-don't simplify at all. 
+Semi-canonical form is very convenient for the user when
+\emph{writing} assertions. The list notation is great for combining
+assertions without having to remember the exact conjunction that must
+be used for each part. It also allows the $\LOCAL$ to remain small,
+because if there is a variable the user knows nothing about, there is
+no need to add it to the locals. It is less convenient when moving
+through a proof of a program. It can introduce existentials and
+substitutions that are slow to simplify, or sometimes don't simplify
+at all.
 
 Even the current form is not completely canonical. It could be
 restricted further which would improve performance in some ways, but
@@ -675,27 +758,28 @@ variety of predicates, including predicates that are created by the
 user. The other problem is that Coq variables can appear as arguments
 to the predicates, making it impossible to establish an ordering over
 them. Even so, any amount of canonicalization of the $\SEP$ could help
-with entailment solving efficiency, so it is worth a look in the future. 
+with entailment solving efficiency, so it is worth a look in the
+future.
 
 \chapter{Applying A Reflective Framework}
 
 \section{Modular Reflection}
 
-Before presenting the reflective framework we presented both the typechecker,
-and a canonical form for assertions which allows us to do substitutions computationally.
-Both our techniques and the reflective framework are reflective.
-They use proved-sound Coq functions to make progress in a proof. This
-section discusses how these techniques interact. There
-is no interesting interaction between the substitution and the
-typechecker because they occur in different places. When we try
-to apply a reflective framework to a logic that uses these reflective
-techniques, though, we run into some interesting challenges. This
-section discusses those challenges and questions if they are 
-avoidable in a differently designed reflective framework.
+Before presenting the reflective framework we presented both the
+typechecker, and a canonical form for assertions which allows us to do
+substitutions computationally.  Both our techniques and the reflective
+framework are reflective.  They use proved-sound Coq functions to make
+progress in a proof. This section discusses how these techniques
+interact. There is no interesting interaction between the substitution
+and the typechecker because they occur in different places. When we
+try to apply a reflective framework to a logic that uses these
+reflective techniques, though, we run into some interesting
+challenges. This section discusses those challenges and questions if
+they are avoidable in a differently designed reflective framework.
 
-A function that is used in a logic can fall into one of
-three categories with respect to their interaction
-with the reflective framework:
+A function that is used in a logic can fall into one of three
+categories with respect to their interaction with the reflective
+framework:
 
 \begin{itemize}
   \item A function that operates on constants and returns a type that can be represented as a constant
@@ -731,42 +815,49 @@ exprD' tus tbs (tyarr tyenviron typrop) (ftc_expr e Delta).
 
 Notice that the right hand side of the equality in the lemma doesn't
 refer to the original typechecking function but the trivially reified
-version. That is, \lstinline|ftc_expr| is a constructor whose denotation is equal
-to \lstinline|tc_expr|, while \lstinline|tc_expr_reif| is a function that when applied will have
-a denotation equal to \lstinline|tc_expr| applied to the same arguments. The function
-\lstinline|tc_expr_reif| can compute while no progress can be made on \lstinline|ftc_expr|.
-We put the denotation function on both sides of the function because
-this allows us to write an RTac that finds reified terms that look like
-\lstinline|ftc_expr e Delta| (uncomputable) and replace them with a term
-\lstinline|tc_expr e Delta|. This is important because we might want
-to run some other RTac on the result of the typechecking. Possibly
-an entailment solver to discharge any remaining conditions. 
+version. That is, \lstinline|ftc_expr| is a constructor whose
+denotation is equal to \lstinline|tc_expr|, while
+\lstinline|tc_expr_reif| is a function that when applied will have a
+denotation equal to \lstinline|tc_expr| applied to the same
+arguments. The function \lstinline|tc_expr_reif| can compute while no
+progress can be made on \lstinline|ftc_expr|.  We put the denotation
+function on both sides of the function because this allows us to write
+an RTac that finds reified terms that look like \lstinline|ftc_expr e
+Delta| (uncomputable) and replace them with a term \lstinline|tc_expr
+e Delta|. This is important because we might want to run some other
+RTac on the result of the typechecking. Possibly an entailment solver
+to discharge any remaining conditions.
 
-We prove that \lstinline|tc_expr_reif| is sound, or that when it has a denotation,
-that denotation matches the \lstinline|tc_expr| function. We also prove it complete by
-showing that whenever \lstinline|ftc_expr| has a denotation, \lstinline|tc_expr_reif| does as well.
-In this case sound and complete is the most useful so we prove it. We have
-found other cases where only soundness is necessary, and will discuss those
-later.
+We prove that \lstinline|tc_expr_reif| is sound, or that when it has a
+denotation, that denotation matches the \lstinline|tc_expr|
+function. We also prove it complete by showing that whenever
+\lstinline|ftc_expr| has a denotation, \lstinline|tc_expr_reif| does
+as well.  In this case sound and complete is the most useful so we
+prove it. We have found other cases where only soundness is necessary,
+and will discuss those later.
 
-The final category is functions whose inputs might contain Coq variables. An example
-of where we run into this is the \lstinline|PTree.set| and \lstinline|PTree.get|
-operations that are in the postcondition of our assignment rules. These functions
-can be computed on their own, even if they are given a \lstinline|PTree| with a
-coq variable in it as an argument. The problem is that there is no way to represent
-any datastructure that contains a coq variable as a constant. This is because there
-is no way to computationally compare two Coq variables for equality. In order to 
-computationally check equality over Coq variables, they must first be reified.
-Reification is designed so that if it sees the same variable twice, it will use
-the same constructor to represent both instances. The constructors can be 
-computationally compared, so variables can be compared in reified syntax.
-We will need to do comparisons on the variables in the local assertion almost
-any time we solve an entailment, so we will need to reify the variables.
+The final category is functions whose inputs might contain Coq
+variables. An example of where we run into this is the
+\lstinline|PTree.set| and \lstinline|PTree.get| operations that are in
+the postcondition of our assignment rules. These functions can be
+computed on their own, even if they are given a \lstinline|PTree| with
+a coq variable in it as an argument. The problem is that there is no
+way to represent any datastructure that contains a coq variable as a
+constant. This is because there is no way to computationally compare
+two Coq variables for equality. In order to computationally check
+equality over Coq variables, they must first be reified.  Reification
+is designed so that if it sees the same variable twice, it will use
+the same constructor to represent both instances. The constructors can
+be computationally compared, so variables can be compared in reified
+syntax.  We will need to do comparisons on the variables in the local
+assertion almost any time we solve an entailment, so we will need to
+reify the variables.
 
-What that means is that we must rewrite \lstinline|PTree.set| and \lstinline|PTree.get|
-to operate on fully reified PTrees. This can be difficult because of the size 
-of the reified syntax. One way to mitigate the complexity of the code is to 
-create a function that matches a reified expression as a tree:
+What that means is that we must rewrite \lstinline|PTree.set| and
+\lstinline|PTree.get| to operate on fully reified PTrees. This can be
+difficult because of the size of the reified syntax. One way to
+mitigate the complexity of the code is to create a function that
+matches a reified expression as a tree:
 
 \begin{lstlisting}
 Definition as_tree (e : expr typ func) : option
