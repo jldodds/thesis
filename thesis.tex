@@ -13,10 +13,11 @@
 \usepackage{lstlangcoq}
 \usepackage{caption}
 \usepackage{stmaryrd}
+\usepackage{minted}
 \renewcommand{\lstlistingname}{Figure}
 \input{macros}
 
-\lstset{language=Coq,basicstyle=\sffamily,mathescape=true,columns=fullflexible}
+\lstset{language=Coq,alsoletter=_,basicstyle=\sffamily,mathescape=true,columns=fullflexible}
 
 
 
@@ -38,29 +39,27 @@
 The C programming language is one of the most commonly used languages
 for writing critical software. C is often used for operating systems,
 embedded systems, and cryptography, as well as countless libraries
-that want great performance and a reasonably common interface. Because
-there is so much critical C code, much of the world depends on the
-correctness of that code for almost every aspect of their lives.
+that need to have a great performance while being usable by as many
+languages and systes as possible. The world depends on more systems
+every day, and a large number of those systems have C code at their core.
 
-In general, the code we depend on works well, but when it fails it can
-be catastrophic. Space projects that cost hundreds of millions of
-dollars have failed due to software failures, radiation devices with
-software flaws have overdosed cancer patients, nuclear missile
-detection systems have given false positives, and millions of cars
-have been recalled to fix software bugs. Those scenarios are only
-bugs; Far more systems can fail when a malicious user attacks them,
-especially in a time where every aspect of our life contains
-computers. As an example a brand of refrigerators was found to have
-been taken over to send spam email. Developing tools that can increase
-confidence in C programs will help increase confidence in many of
-these vulnerable/critical systems.
+In general, the code we depend on works well, and there is plenty of
+code that can fail without causing harm but when it fails it can be
+catastrophic. Space projects that cost hundreds of millions of dollars
+have failed due to software failures, radiation devices with software
+flaws have overdosed cancer patients, nuclear missile detection
+systems have given false positives, and millions of cars have been
+recalled to fix software bugs. Those scenarios are only bugs; Far more
+systems can fail when a malicious user attacks them. As an example
+a brand of refrigerators was found to have been taken over to send
+spam email. 
 
 To believe that a C program will run correctly we must first believe a
 number of other things. There are a number of components that we will
-need to be able to \emph{trust} in order to trust our C program. need
-to fully understand the program itself, and believe that when executed
-it will have the expected behavior. We also need to believe that when
-the C code is translated to machine language, the generated machine
+need to be able to \emph{trust} in order to trust our C program. We need
+to fully understand the program itself, and believe that it will do
+what we want it to. We also need to believe that when
+the C code is translated into machine language, the generated machine
 language has the same behavior as the original program. Finally we
 need to believe that the machine executing the machine language is
 doing the correct thing. We call the collection of things we must
@@ -74,77 +73,100 @@ down to the actual execution of the machine. In order to make the
 trusted computing base as small as possible, we must maximize our
 confidence in every step of the process.
 
-Proof assistants are tools that help to write and check mathematical
-proofs. If you want to believe a classic mathematical proof you need
-to understand the statement of the proof, which is open to ambiguities
-based on assumptions made by the writer, and then believe every single
-step of the proof itself, even steps where the proof author says
-something like ``clearly'' or ``obviously''. This can be an enormous
+Proof assistants are tools for stating theorems, and then writing and
+checking proofs of those theorems. If you want to believe a pen and
+paper mathematical proof you first need to understand the statement of
+the proof, which is open to ambiguities based on (often unstated)
+assumptions made by the writer, and then believe every single step of
+the proof itself, even steps where the proof author says something
+vague like ``clearly'' or ``obviously''. This can be an enormous
 burden on the person that needs to understand how the proof was done;
-New proofs can use new techniques that are impenetrable to anyone but
-experts in the specific domain the proof is about. A proof assistant,
-on the other hand, forces proof statements to be written using a set
-of basic, well defined building blocks, making theorem statements
-completely unambiguous. The proof assistant provides tools for proving
-theorems, but those tools don't need to be trusted. All that needs to
-be trusted is a part of the proof assistant that checks the proof when
-it is created. This is advantageous because the proof itself becomes
-irrelevant to someone interested in believing the theorem. All that is
-relevant that the proof assistant successfully checked the proof, and
-that the proof assistant's checker is correct. In other words, the
-trusted base of a theorem proved in a proof assistant is the statement
-of that theorem and the correctness of the checker, but we have very
-strong trust in the correctness of the checker.
+new proofs can use new techniques that are impenetrable to anyone but
+experts in the specific domain of the proof. This is a real problem,
+because often the thing being proved is incredibly useful to a large
+range of people even if the proof itself is difficult for them to
+understand. If you want to use a pen and paper proof that you can't
+understand, you must trust the process of peer review. Maybe you
+noticed that the paper appeared in a good publication. This means that
+some number of anonymous reviewers believed the proof. They are
+probably experts, and you want the proof to be true anyways so you can
+use it, so you go ahead and use their theorem for your own work.
 
-Peer review is the technique by which mathematical proofs are judged
-to be correct. A number of people read the proof and if they feel that
-every step in the proof is correct, a consensus might eventually be
-reached that the proof is actually correct. This must be done for
-every theorem that will ever be proved. With a proof assistant though,
-all that needs to be peer reviewed is the statement of the theorem,
-which should be understandable to anyone that is interested in its
-results, and the proof checker, which is of interest to anyone who
-wants to believe a proof. So instead of a subset of a specific
-community reviewing any given proof, a proof assistant is reviewed by
-a good fraction of the entire community that is interested in proofs.
+A proof assistant, on the other hand, forces proof statements to be
+written using a set of basic, well defined building blocks, making
+theorem statements completely unambiguous. The proof assistant often
+provides tools for building proofs. These tools write proofs using a
+similar set of well-defined building blocks to the ones used for
+stating the theorem. Again, these building blocks are
+unambiguous. There is not building block for ``clearly'' or
+``obviously'', all proofs must be fully explicit all the way down.
+This means that the tools for building proofs don't need to be
+trusted. All that needs to be trusted is a part of the proof assistant
+that checks the proof when it is created. This is analogous to not
+needing to trust the person writing a pen and paper proof, as long as
+you trust the proof that they wrote. That means that the proof itself
+is irrelevant to someone interested in believing the theorem. All
+that is relevant is that the proof assistant successfully checked the
+proof, and that the proof assistant's checker is correct. This means
+that if a proof is stated and proved in a proof assistant, to believe
+the proof we must trust:
 
-A verified compiler gives us a proof that if it is given a valid C
+\begin{enumerate}
+  \item The statement of the theorem being proved, and
+  \item the correctness of the checker. 
+\end{enumerate}
+
+Because the writers of proof assistants are aware of the importance of
+having a small trusted computing base, they often make an effort to
+make the checker as simple and minimal as possible. As small as the
+checker is, it can still be difficult for an average user of the proof
+assistant to believe on their own. Once again, the best place to look
+in order to believe the proofs in to peer review. In this case though,
+it is not a few anonymous reviewers that are looking at an individual
+proof, it is the entire community that is interested in the
+correctness of the proof assistant. This is an advantage of
+concentrating trust. The fewer things that need to be trusted, the
+more attention they can get.
+
+
+A verified compiler gives a proof that if it is given a valid C
 program, it will generate assembly code with the same behavior as the
 C program. This proof is checked by the Coq proof assistant, meaning
-that its trusted base is the Coq proof checker, and the statement of
+that its trusted base is the Coq proof checker and the statement of
 the theorem. To be able to use the theorem effectively though, we need
 to be able to show that the C program will always have a valid
-execution.
+execution. 
 
-If we showed that the C program executed successfully, the verified
-compiler would guarantee that the assembly code that it outputs has
-the same behavior as the C input. This is an important step, but it
-can be very hard to determine what a C program is doing just by
-examining the source code.  A typical C program doesn't just specify
-what it is doing, it specifies how it is doing it. In C, the
-specification is relatively low level meaning that a program will need
-more details about how the computation is being done than a higher
-level language. This is part of why C is so successful, the added
-control allows programmers to write more efficient programs, but it
-can make it much harder to understand what the program is actually
-doing.
+The results of the verified compiler tells us that the compiler won't
+change the behavior of the program, but this is only really useful to
+us if our program is doing the right thing in the first place. It can
+be very hard to determine what a C program is doing just by examining
+the source code.  A typical C program doesn't just declare what it is
+doing, it declares how it is doing it. The C language is relatively
+low level meaning that a program will need more details about how the
+computation is done than a higher level language. The high level of
+control over the details of execution is a large part of why C
+continues to be popular over 40 years after it was created. It allows
+programmers to write more efficient programs, but it can make it much
+harder to understand what the program is actually doing.
 
 In order to specify what a program is doing rather than how it is
-doing it we write a mathematical specification of the program should
-do. This mathematical model lacks the complexity that a real program
-needs to work efficiently on a computer. The specification is a new
-link in the chain above the C source code, but it is not attached
-yet. A \emph{Program Logic} is used to prove that the result of
-executing the C program meets the specification. This program logic
-can be written in Coq, and proved correct using the same specification
-of the C language that CompCert uses. With this proof, the chain can
-be completed from specification all the way to assembly language.
+doing it we write a mathematical specification of what the program
+should do. This mathematical model lacks the complexity that a real
+program needs to work efficiently on a computer.  The specification is
+a new link in the chain above the C source code, but I have not
+described how it is attached to the rest of the chain yet. A
+\emph{Program Logic} is used to prove that the result of executing the
+C program meets the specification. This program logic can be written
+in Coq, and proved correct using the same specification of the C
+language that CompCert uses. With this proof, the chain can be
+completed from specification all the way to assembly language.
 
 The combination of the tools mentioned here gives proof that the
 assembly code that the machine executes has the same behavior as an
 abstract mathematical specification. To believe that the proof is
 correct, all we need to trust is the mathematical specification itself
-and the theorem proverb'sproof checker.
+and the theorem prover's proof checker.
 
 There is still a significant amount of work to do if you wish to prove
 a program correct. First you must create an accurate specification
@@ -153,26 +175,25 @@ process of proving a program meets a specification using a program
 logic can be very involved. Program logics implemented in proof
 assistants are often \emph{interactive}. To build a proof in an
 interactive program logic, you examine a proof state and then perform
-an action to manipulate the state. The action will result in a new
-proof state, which you can manipulate again, and the process repeats
+an action to manipulate that state. The action will result in a new
+proof state, which you can repeatedly manipulate 
 until the proof is completed.
 
 One of the biggest problems that complex program logics run into is
 that they are slow. This means that the time between giving input and
 receiving a new proof state can be long. Writing a proof in a program
-logic is already difficult work, requiring intimate knowledge of the
+logic is already difficult work requiring intimate knowledge of the
 program, the programming language, and the logic. Having to wait
-between each step in a proof while the program does computation
-multiplies the difficulty of the proof. This is especially true
+between each step in a proof multiplies the difficulty.  This is
 because proof development is often experimental in nature. The first
 step is to make a good guess at a specification. If the proof gets
-stuck, either the specification or the program needs to change. If
-either of those change, the proof will need to start over from the
-beginning. A slow program logic can drastically limit the number of
-manipulations of the program or the specification that can be done in
-any given stretch of time. If the time is long enough, it can also be
-hard for the person doing the proof to remember what they were working
-on when they last made progress on the proof.
+stuck, either the specification or the program needs to change. When
+those change, the proof will need to start over from the beginning. A
+slow program logic can drastically limit the number of manipulations
+of the program or the specification that can be done in any given
+stretch of time. If the time is long enough, it can become difficult
+the person doing the proof to remember what they were working on when
+they last made progress on the proof.
 
 This thesis shows how a complex programming logic for proving the
 correctness of C programs can be made significantly faster without any
@@ -183,10 +204,21 @@ in making the program logic a widely usable tool.
 Many of the parts discussed so far are existing work: The proof
 assistant we have chosen to use is Coq, Leroy's CompCert \cite{} is a
 C compiler implemented and proved sound in Coq, and Appel et al. have
-created the Verified Software Toolchain to give secure chain from
-specification language to assembly including a specification logic and
-a program logic to relate the specification to a CompCert C program.
+created the Verified Software Toolchain (VST) to give a proved-correct
+chain from specification language to assembly including a
+specification logic and a program logic to relate the specification to
+a CompCert C program.
 
+\paragraph{Contribution}
+This thesis discusses the modification of a program logic to improve
+usability and speed up the application of the logic. It consists of a
+number of modifications to the logic and results in a tactic for
+manipulating proofs about C programs. The tactic runs at least 40x
+faster than previous tactics and works on all verifiable-c non-call
+assignment statements (\lstinline|x := e|), meaning it makes progress
+on a single basic block at a time. The tactic is fully compatible with
+previous tactics, meaning that in places where it is not usable,
+existing tactics can still make progress on the proof.
 
 \chapter{Computation in Coq}
 
@@ -204,10 +236,10 @@ so \lstinline|boolean| is a type that can be constructed by either
 \lstinline|true| or \lstinline|false| and when given a
 \lstinline|boolean|, a function can decide which of the two it is. Now
 we can look at the definition of \lstinline|True| and
-\lstinline|False| (capitalized), which are in the type
+\lstinline|False|, which are in the type
 \lstinline|Prop| instead of \lstinline|bool|. Prop is not an
 inductively defined type in Coq, so it can't be matched
-against. Instead the types of \lstinline|True| and \lstinline|False|
+against. Instead the definitions of \lstinline|True| and \lstinline|False|
 are
 
 \begin{lstlisting}
@@ -216,32 +248,33 @@ Inductive True : Prop := I : True.
 Inductive False : Prop
 \end{lstlisting}
 
-So if a Coq program is given something of type \lstinline|Prop|, it
-has no ability to determine what it is, just like if it is given a
-value of an arbitrary type it is unable to determine what that type
-is. That doesn't mean that it is impossible to reason about things of
-type \lstinline|Prop| in Coq though. Instead, Coq has tactics, which
-exist almost exclusively for that reason. A tactic in Coq is a program
-that manipulates a proof state. A Coq proof state is a goal, or a
-\lstinline|Prop| to be proved, along with a number of quantified
-variables of any type, and a number of hypothesis of type
-\lstinline|Prop|. Because Ltac is used to build proofs, it must keep a
+\noindent so if a Coq program is given something of type
+\lstinline|Prop|, it has no ability to determine more information
+about it, just like if it is given a polymorphic value it is unable to
+determine what the type of the value is is. That doesn't mean that it
+is impossible to reason about things of type \lstinline|Prop| in
+Coq. Instead of using Gallina to operate on \lstinline|Prop|, Coq has
+tactics, which exist almost exclusively for that reason. A tactic in
+Coq is a program that manipulates a proof state while generating a
+proof object recording its activity. A Coq proof state is
+a goal, or a \lstinline|Prop| to be proved, along with a number of
+quantified variables of any type, and a number of hypothesis of type
+\lstinline|Prop|. Because tactics are used to build proofs, it must keep a
 record any time it makes progress on the proof term so that when the
 proof is over, the record of the proof, or the proof object, can be
 checked.
 
-This design means that Ltac doesn't need to be sound. As long as it
-results in a correct proof in the end, it doesn't really matter how it
-did it. Proofs that do a large amount of proof search to do a
+This design means that tactics don't need to be sound. As long as they
+result in a correct proof in the end, it doesn't really matter how
+they did it. Proofs that do a large amount of proof search to do a
 reasonably small amount of work in the end can perform reasonably well
-in Ltac. Unfortunately, many of the proofs that Coq's users want to do
-require both a lot of proof search, and numerous operations over the
-proof state to succeed. In these cases, the overhead of keeping and
-modifying the
-proof object (which can take up substantial amounts of memory) can
-lead to very slow Ltac performance. 
+in tactical proof. Unfortunately, many of the proofs that Coq's users
+want to do require both a lot of proof search, and numerous operations
+over the proof state to succeed. In these cases, the overhead of
+keeping and modifying the proof object (which can take up substantial
+amounts of memory) can lead to very slow tactic performance.
 
-Logics such as VST's verifiable C logic are in
+Logics such as VST's verifiable C program logic are in
 \lstinline|Prop|. Logics in Prop are said to be shallowly
 embedded. They use the syntax of Coq, rather than defining a logic of
 their own. Some systems such as Appel's VeriSmall \cite{} are deeply
@@ -292,7 +325,7 @@ equal. We supply the arguments \lstinline|b| and \lstinline|c| to the
 tactic because it is ambiguous where to rewrite the lemma, and Coq
 might guess wrong unless we tell it.
 
-Now imagine we have a deep embedding for nat, addition, and equality
+Now we can create a deep embedding for nat, addition, and equality
 
 \begin{lstlisting}
 Inductive expr' :=
@@ -357,8 +390,8 @@ match e with
 end.
 
 Lemma symmetry_func_sound : 
-forall e1 e2,
-expr_denote (e) = expr_denote (symmetry e)
+forall e1 e2 e,
+expr_denote (e) = expr_denote (symmetry e e1 e2)
 ...
 \end{lstlisting}
 
@@ -390,15 +423,18 @@ embedding by moving between the two when it is needed.
 
 \section{Computational reflection}
 
-Computational reflection is the process of translating a shallow
-embedding to a deep embedding, applying a proved-sound function to the
-deep embedding, then evaluating the denotation function to return to
-the shallow embedding. If this is done all in a single step, the user
-will never know that the technique of reflection is being used. That
-means that the efficient, proved-sound decision procedures that can be
-used on deep embeddings can essentially be used as if they are
-tactics, along side all of the other tactics and LTac automation that
-might be built up around a logic. 
+Proof by reflection is the technique of using proved-sound computation
+on a deep embedding to make progress in a proof. To use reflection on
+a shallow embedding, there will first need to be a translation from
+the shallow embedding into a deep embedding. Then a proved-sound
+function can be evaluated on the deep embedding, and if it is
+appropriate the denotation function can be evaluated, resulting in a
+shallow embedding again.  If this is done all in a single step, the
+user of a reflective tactic never needs to know that reflection is
+being used. That means that the efficient, proved-sound decision
+procedures that can be used on deep embeddings can essentially be used
+as if they are tactics, along side all of the other tactics and LTac
+automation that might be built up around a logic.
 
 The process of translating from a shallow embedding to a deep
 embedding is known as reification. Because Coq programs can't match on
@@ -412,23 +448,23 @@ shallow embedding that is easy for the user to view and work with.
 
 %graphic from prefpo 
 
-Many shallow embeddings, including VST, have parts that are made up
-completely of constructors. In most program logics, for example, the
-programming language will not be Coq's programming language, but a
-deep embedding of the syntax of the language along with a semantics
-that describes the execution of that syntax in the state of the
-programming language. Because the syntax is a deep embedding, it is
-possible to write Coq functions that reason about them, and then prove
-those functions sound (usually with respect to the operational
-semantics). This is a type of reflection that doesn't require
-reification at all, making it more efficient and allowing it to fit
-cleanly into the shallowly embedded program logic. One such example in
-VST is the typechecker which is used to show that expressions in the
-program successfully evaluate given the state represented by the
-precondition.
+Many shallow embeddings, including VST's logic, have parts that are
+made up completely of constructors. In many program logics, for
+example, the programming language will not be Coq's programming
+language, but a deep embedding of the syntax of the language along
+with a semantics that describes the execution of that syntax in the
+state of the programming language. Because the syntax is a deep
+embedding, it is possible to write Coq functions that reason about
+them, and then prove those functions sound (usually with respect to
+the operational semantics). This is a type of reflection that doesn't
+require reification at all, making it more efficient and allowing it
+to fit cleanly into the shallowly embedded program logic. One such
+example in VST is the typechecker which is used to show that
+expressions in the program successfully evaluate given the state
+represented by the precondition.
 
 
-\chapter{Typechecking C Expressions}
+\section{Typechecking C Expressions}
 
 The CompCert operational semantics has a partial inductive relation
 $\rho \vdash e\Downarrow v$ for evaluation of an ($r$-value)
@@ -437,7 +473,7 @@ relation $\rho \vdash e\Downarrow_l v$ for the $l$-value
 interpretation of an expression.  These relations are inconvenient in
 program proof, as we would frequently need existential variables
 $\exists v.~\rho \vdash e\Downarrow_l v$, and proofs of often trivial
-side-conditions that $v$ exists.
+side-conditions that $v$ exists. 
 
 C's type system is unsound---type-checking does not guarantee safe
 execution. In general, it is impossible to have a sound typechecker
@@ -513,16 +549,16 @@ elements of $P$, $\LOCAL$ folds lifted conjunction (
 \lstinline|`and : (environ -> Prop)-> (environ -> Prop) -> (environ -> Prop))|, and
 $\SEP$ folds the separation logic \lstinline|*|, or separating
 conjunction operator. $P$, $Q$, and $R$, are represented as lists
-because, particularly in the case of $\SEP$, it is often convenient to
-refer to the $n$th conjunct. This is much easier to implement when our
-assertion is a list.  We say that assertions in this form are in
-semi-canonical form.
+because, particularly in the case of $\SEP$, it is convenient to refer
+to the $n$th conjunct. This is much easier to implement when our
+assertion is restricted to a flat sequence of conjunctions.  We say
+that assertions in this form are in semi-canonical form.
 
-At the lowest level, the Verifiable C logic rules are completely
-unaware of any sort of canonical form. They generally refer to
+At the lowest level, the Verifiable C logic rules are agnostic to any
+structure that the assertion might have. The rules refer to
 assertions as single variables, using entailments to constrain them
 rather than imposing syntactic requirements on them. The Floyd
-automation system contains higher level lemmas that require assertions
+automation system has higher level lemmas that require assertions
 to be in semi-canonical form, but also guarantee that the side
 conditions that result from using the rules will be in semi-canonical
 form.
@@ -530,7 +566,7 @@ form.
 \subsection{Substitution in semi-canonical form}
 
 At the Verifiable C level, there is no choice but to use a semantic
-notion of substitution called 
+notion of substitution called \linebreak
 \lstinline|subst {A: Type} (x : ident) (v:val) (P : environ -> A) : environ -> A|.
 This is because we know nothing about the assertion at all, only that
 it takes an environment and returns an \lstinline|mpred|. The following example
@@ -552,12 +588,32 @@ Axiom semax_set_forward: $~~$forall $\Delta$ ($P$: environ->mpred) ($x$: ident) 
 
 There are two substitutions here, used to replace any occurrences of
 the variable \lstinline|x| that might have occurred in either the
-precondition or the expression being assigned into \lstinline|x|.
+precondition or the expression being assigned into \lstinline|x|. To
+see why the substitution is necessary, the following example shows
+what happens if we don't have substitution:
+
+\begin{lstlisting}
+{eval_id x = 3}
+   x = 4;
+{eval_id x = 3 /\ eval_id x = 4}
+\end{lstlisting}
+
+For the triple above to hold, the program would need to infinite loop
+on the assignment to \lstinline|x|, which seems unlikely. Instead we
+do the substitution and get:
+
+\begin{lstlisting}
+{eval_id x = 3}
+   x = 4;
+{exists x_old, x_old = 3 /\ eval_id x = 4}
+\end{lstlisting}
+
+
 Although subst is a function, in practice it can never be computed.
 This is because it works by updating the environment that $P$ refers
 to. During symbolic execution, however, the environment is always
 abstract, constrained only by the precondition, which means there is
-no datastructure to be updated. This means that the definition of
+no datastructure to perform updates in. This means that the definition of
 \lstinline|subst| that appears in Verifiable C isn't directly useful
 to proof automation. It can't compute so without special lemmas and
 tactics it will appear in side conditions. To deal with this the Floyd
@@ -591,12 +647,12 @@ There is a situation when a substitution \lstinline|subst $x$ $v$ $P$| can
 be avoided completely. That is when $P$ is \emph{closed} wrt. 
 $x$, also a semantic notion:
 
-\begin{lstlisting}
+\begin{minted}{Coq}
 Definition closed_wrt_vars {B} (S: ident -> Prop) (F: environ -> B) : Prop := 
   forall rho te',  
      (forall i, S i \/ Map.get (te_of rho) i = Map.get te' i) ->
      F rho = F (mkEnviron (ge_of rho) (ve_of rho) te').
-\end{lstlisting}
+\end{minted}
 
 Generally we give \lstinline|S| as Coq equality with a specific
 identifier.  What \lstinline|closed_wrt_vars| means, then, is that if
@@ -916,9 +972,150 @@ over Coq variables without requiring reified functions?
 
 \chapter{Evaluation}
 
-Mostly same as paper evaluation, more discussion of why the synthetic
-example is a useful metric for what we can expect in real programs, 
-maybe a synthetic example for load/store too
+We combine the steps of reification, computation, and reflection
+together with an application of the soundness proof of Rtac and our
+symbolic execution function to create the \lstinline|rforward|, or
+reflective forward, tactic that can operate directly on Coq proof
+goals. Because it operates on proof goals, \lstinline|rforward| must
+be programmed in Ltac.  It works by:
+\begin{enumerate}
+\item calling MirrorCore's Ocaml plugin to reify the goal,
+\item calling \lstinline|vm_compute| on the symbolic execution Rtac
+  applied to the reified goal,
+\item applying the soundness lemma for the symbolic execution Rtac
+  using the reified goal and the Rtac result as arguments, and
+\item taking the denotation of the remaining subgoals.
+\end{enumerate}
+The key to making proof by reflection efficient is the use of the
+\lstinline|vm_compute| tactic, which compiles bytecode and runs it in
+a bytecode interpreter. The \lstinline|vm_compute| tactic is the
+fastest way to do evaluation ($\beta\eta\delta$-normalization) in Coq
+8.4; we expect the forthcoming \lstinline{native_compute} of Coq 8.5
+will improve \emph{all} the results in this paper even more.  The use
+of \lstinline|vm_compute| can do more harm than good in the wrong
+situations. Calling it on subgoals with opaque variables can stop
+functions from simplifying. If this happens deep in a stack of
+function calls, resulting terms can become massive, and evaluation can
+take an extremely long time. Therefore it is important to call
+\lstinline|vm_compute| only on expressions that definitely evaluate to
+a reasonably sized result. The reasonably sized result must assume
+that all definitions that appear in the original expression will be
+unfolded completely, meaning that there shouldn't be opaque terms
+anywhere in a term VM compute is run on.
+
+  
+The test we present here is the symbolic execution of a program with
+$n$ statements that assigns $0$ into $n$ different variables. This
+test is actually a best case for the Ltac version because it is able
+to notice that the precondition is always closed w.r.t the variable we
+are assigning into and avoid introducing an existential at each
+step. 
+We show the performance of Ltac and
+Rtac as $n$ increases in Figure \ref{fig:chart}.
+
+\begin{figure}
+\vspace{-2ex}
+\includegraphics[width=\textwidth]{chart.pdf}
+\vspace{-4ex}
+\caption{Run time of Ltac vs Rtac, for $n$ consecutive C statements (log-log scale).}
+\label{fig:chart}
+\vspace{-4ex}
+\end{figure}
+
+Each data point is the average of 10 consecutive runs on a standard laptop. The
+amount of memory on the laptop is over 2 gigabytes, which is the
+maximum amount of memory that 32-bit Coq can use. Because it is very
+difficult to get 64-bit Coq on all platforms, we attempt to write
+tactics that can operate within the lower memory bounds.
+
+Although this is a synthetic test, we consider
+it a lower bound on the performance increase we will see in the
+process of a real proof. This is because numerous other tests
+indicate that for non-addressed variable assignments the size of the
+precondition has the predominant effect on the run-time, not the
+contents. This follows from what we would expect. The computation that
+we need to do is almost all getting and setting from efficient tree
+maps where get and set take $\log(n)$ time where $n$ is the largest
+index that exists in the map. This is acceptable because we know that
+our program input will be compiled by CompCert, and CompCert always
+starts its variable indices with $1$, moving up sequentially. We can
+be confident that this will always be the case because CompCert makes
+use of PTrees. The remainder of the operations that RTac does are
+linear (or slower) unifications between lemmas and proof goals, as
+well as linear (or slower) rewrites by proved equalities. Repeated
+linear operations are what lead to the polynomial operation we observe in
+the chart above, not repeated $\log(n)$ gets and sets. 
+
+The chart shows that there 
+is a speedup of (typically) 40$\times$ (e.g., running $n\! = \! 8$ consecutive
+C-program statements). 
+Speedup improves with scale: $n\! =\! 50$ 
+steps in Ltac takes over 2 minutes, while
+the same number of steps in Rtac takes only .9 seconds, running almost 150$\times$ faster! 
+Even for $n\!=\!1$ there is a 4$\times$ speedup.
+This greatly improves interactivity of the logic. In general it
+seems that growth of time relative to the number of program steps is
+quadratic. Our benchmark that uses more complex preconditions
+scales even better (not shown in a graph),
+with 74$\times$ speedup at $n\! = \!10$.
+
+
+The \emph{computation} curve, at the upper end, clearly
+shows a time complexity of $n^{2.5}$.
+This time complexity is roughly what we expect,
+because (in this example) the
+precondition grows linearly with the number of steps,
+and each step has proof operations at least proportional to the size
+of the precondition.
+
+
+
+On a real-life example, a loop-body from 
+OpenSSL's SHA function\footnote{The second loop body in
+the \lstinline{sha256_block_data_order} function of the cited paper \cite{appel15:sha}; there are 850 nodes in the loop body's abstract synax tree.} 
+takes 336 seconds to verify in our Ltac \lstinline{forward} tactic;
+\lstinline|rforward| takes only 12 seconds---a 28$\times$ speedup. The sequence
+includes 13 local-variable assignments,
+5 loads, and 1 store, several of which contain 
+huge mathematical expressions (resulting from macro-expansion in the
+C source code). The assertions in that example
+are large, with many local-variable and
+spatial conjuncts.
+
+Our computational theory of nested records yields 
+a significant performance improvement.
+Our \lstinline{data_at} benchmark verifies a sequence of 
+4 loads and 4 stores
+on a data structure represented by 8 spatial conjuncts,
+taking 63 seconds in Ltac.  Using 
+\lstinline{data_at}, with just one conjunct, 
+verification takes 15 seconds in Ltac, a factor of 4 improvement.
+We don't expect to see the same speedup in Rtac, which in
+general is slower to be affected by changes in precondition size.
+
+Unfortunately, after Rtac has efficiently computed a proof,
+Coq's \lstinline|Qed| blows up, taking minutes  in some cases.
+Qed blowups tend to occur when Coq cannot find an efficient
+$\beta\eta$-conversion sequence to prove an equality
+(even if the tactic script demonstrated one).
+In the next section we discuss how to fix this.
+Performance measurements in this section (for both Ltac and Rtac)
+do not include Qed times; the Ltac Qed times are larger than
+the Rtac Qed times, but both are terrible (e.g., 815 and 615 seconds,
+respectively, for the SHA loop-body example).
+
+While this is frustrating, as Coq continues to mature, even if Qed
+time is slow, it won't cause too much frustration to the user. This is
+because starting with Coq 8.5, proofs can be built and checked
+asynchronously, allowing their statements to be used farther down in a
+file while they build. A Qed time of a few minutes is inconsequential
+as long as the user doesn't need to wait for it to continue proofs,
+even proofs using the not-yet-checked proof. Furthermore, Coq 8.5 will allow for Coq .v
+files to be compiled without checking proofs, making them very quickly
+importable. Later it is possible to replace the unchecked object files
+with object files. This means that libraries that are slow to build
+can be built and usable rapidly, and then the actual work of checking
+the proofs can be done in the background at the user's convenience.
 
 \chapter{Conclusion}
 
