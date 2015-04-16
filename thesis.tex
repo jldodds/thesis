@@ -226,27 +226,28 @@ The Coq proof assistant has a built in functional programming language
 called Gallina with the ability to match inductive data-structures. The type
 boolean, for example can be defined:
 
-\begin{lstlisting}
+\begin{minted}{coq}
 Inductive boolean :=
 | true
 | false.
-\end{lstlisting}
+\end{minted}
 
 so \lstinline|boolean| is a type that can be constructed by either
 \lstinline|true| or \lstinline|false| and when given a
 \lstinline|boolean|, a function can decide which of the two it is. Now
 we can look at the definition of \lstinline|True| and
 \lstinline|False|, which are in the type
-\lstinline|Prop| instead of \lstinline|bool|. Prop is not an
+\lstinline|Prop| instead of \lstinline|boolean|. Prop is not an
 inductively defined type in Coq, so it can't be matched
 against. Instead the definitions of \lstinline|True| and \lstinline|False|
 are
 
-\begin{lstlisting}
+\begin{minted}{coq}
 Inductive True : Prop := I : True.
-
-Inductive False : Prop
-\end{lstlisting}
+\end{minted}
+\begin{minted}{coq}
+Inductive False : Prop.
+\end{minted}
 
 \noindent so if a Coq program is given something of type
 \lstinline|Prop|, it has no ability to determine more information
@@ -304,19 +305,19 @@ deeply embedded assertion must be proved sound with respect to the
 denotation function. Take Coq's rewrite tactic as an example. In this
 tactic if we have a lemma about an equality for example:
 
-\begin{lstlisting}
+\begin{minted}{coq}
 Lemma add_symm : forall a b, a + b = b + a
-\end{lstlisting}
+\end{minted}
 
 and we wish to prove a goal 
 
-\begin{lstlisting}
+\begin{minted}{coq}
 a : nat
 b : nat
 c : nat
 ======================
 a + (b + c) = a + (c + b) 
-\end{lstlisting}
+\end{minted}
 
 we can use the tactic \lstinline|rewrite (add_sym b c); reflexivity|
 to transform the left side to match the right side, and then tell Coq
@@ -327,7 +328,7 @@ might guess wrong unless we tell it.
 
 Now we can create a deep embedding for nat, addition, and equality
 
-\begin{lstlisting}
+\begin{minted}{coq}
 Inductive expr' :=
 | num : nat -> expr
 | add : expr -> expr -> expr.
@@ -345,25 +346,25 @@ Definition expr_denote e :=
 match e with
 | eq e1 e2 => expr'_denote e1 = expr'_denote e2
 end.
-\end{lstlisting} 
+\end{minted} 
 
 Then we can write a symmetry lemma
 
-\begin{lstlisting}
+\begin{minted}{coq}
 Lemma add_sym' : forall a b, 
 expr'_denote (add a b) = expr'_denote (add b a)
-\end{lstlisting}
+\end{minted}
 
 While this isn't too hard to prove, it also doesn't end up being too
 useful in proving our goal:
 
-\begin{lstlisting}
+\begin{minted}{coq}
 a : expr
 b : expr
 c : expr
 ======================
 expr_denote (add a (add b c)) (add a (add c b))  
-\end{lstlisting}
+\end{minted}
 
 The lemma we wrote doesn't match the syntax of what we need to prove
 so we can't use the rewrite tactic. We could unfold the definition of
@@ -374,7 +375,7 @@ rewrite and prove that function sound with respect to the denotation
 function (assuming we have an equality function on our expr, which
 isn't hard to write):
 
-\begin{lstlisting}
+\begin{minted}{coq}
 Fixpoint symmetry' e e1 e2 := 
 match e with
 | add e1' e2' => if (e1 == e1' && e2 = e2') 
@@ -393,7 +394,7 @@ Lemma symmetry_func_sound :
 forall e1 e2 e,
 expr_denote (e) = expr_denote (symmetry e e1 e2)
 ...
-\end{lstlisting}
+\end{minted}
 
 Now we can rewrite by \lstinline|symmetry_func_sound| and simplify the definition
 of symmetry in the new goal, and we will have done the same thing we
@@ -464,7 +465,7 @@ expressions in the program successfully evaluate given the state
 represented by the precondition.
 
 
-\section{Typechecking C Expressions}
+\chapter{Typechecking C Expressions}
 
 The CompCert operational semantics has a partial inductive relation
 $\rho \vdash e\Downarrow v$ for evaluation of an ($r$-value)
@@ -473,30 +474,70 @@ relation $\rho \vdash e\Downarrow_l v$ for the $l$-value
 interpretation of an expression.  These relations are inconvenient in
 program proof, as we would frequently need existential variables
 $\exists v.~\rho \vdash e\Downarrow_l v$, and proofs of often trivial
-side-conditions that $v$ exists. 
+side-conditions that $v$ exists. This chapter discusses why this
+semantics is written in this manner and why reasoning about the
+semantics by way of a program logics gives us the flexibility to do
+things in a more computational manner.
 
-C's type system is unsound---type-checking does not guarantee safe
-execution. In general, it is impossible to have a sound typechecker
+\section{Type soundness of C}
+
+A type system is sound with respect to an operational semantics if a
+well typed program will never go wrong. Go wrong can mean a variety of
+things depending on the goal of the type system, going wrong could be
+a runtime error caused by a failed type conversion, dereferencing a
+null pointer, or entering a state not described by the semantics of
+the language. A type checker is typically a decision procedure that
+decides if a program is well typed in a type system. A trivially sound
+type system and type checker reject all programs.
+
+
+
+It is possible to create a type system for C that accepts a reasonable
+number of programs and is sound with respect to
+a limited notion of ``going wrong''. It is impossible to extend this
+notation to any degree of memory safety, or more usefully to extend it
+to state that a program will always exhibit defined behavior.
+
+
+
+In general, it is impossible to have a sound and typechecker
 for C because the safe execution of C programs depends on dynamic
-properties of the program. Other languages have error handling
-mechanisms built into their semantics (such as exceptions). A sound
-typechecker guarantees that the program will always have an execution
-defined by the semantics, so a language with exceptions for run-time
-errors can have a sound typechecker, as can a language without
-run-time errors. 
+properties of the program. A C program with a division by $0$, for
+example, will typecheck and then might crash on execution. The
+situation might be worse than crashing too because almost all C
+programs that crash are exhibiting undefined behavior. That means that
+the compiler can generate whatever code it wants and still be a valid
+C compiler. For an example, a valid but unlikabe C compiler could
+generate code that erases your hard drive in place of code that
+performs division by 0.
 
-To guarantee that a C program always has an execution that is defined
-by the C semantics our type-checker for C \cite[Chapter
-25]{appel14:plcc} \lstinline|tc_expr ($\Delta$ : tycontext) (e : expr) : tc_assert|
+This was done for performance reasons. It is nice for compiler writers
+to not have to worry about malformed programs and instead write
+optimizations and instructions that assume that programs will behave
+nicely.  As a result, individual compilers generally exhibit
+reasonably consistent behavior, but there is no real requirement for
+them to do so. Changing compilers or even compiler settings could lead
+to massive changes in the execution of programs that perform undefined
+operations. This is especially dangerous because unless a programmer
+pays careful attention to the C standard (a document with over 500
+pages, 13 of which are used just listing the various undefined
+behaviors), they might never know that their code is exhibiting
+undefined behavior until it causes a problem.
 
- calculates minimal nontrivial separation-logic
+
+Because it is impossible to create a C type system that is sound,
+decidable, and accepts a reasonable number of programs, we use a
+type system that is not decidable, leaving the more difficult parts to
+decide up to the user. This means that our type-checker \cite[Chapter 25]{appel14:plcc} 
+\lstinline|tc_expr ($\Delta$ : tycontext) (e : expr) : tc_assert|
+calculates minimal nontrivial separation-logic
 assertions required for safe evaluation of expressions.  It does this
 with the help of a type-context $\Delta$ that (conservatively) tracks the
 initialization status of all variables; soundness of the program logic
 guarantees that all initialized variables contain defined values of
-the right type. Because the typechecker will be a function whose
+the right type. Because the typechecker is a function whose
 result we will use in our program logic, it is important that all of
-its arguments will be deeply embedded. The expression comes from a
+its arguments are deeply embedded. The expression comes from a
 concrete compiled program, so we know that it will be made completely
 of constructors. We chose the definition of the type context to be a
 computationally efficient mapping structure indexed by program
@@ -504,12 +545,14 @@ variables that will always have concrete values. This means that we
 can be confident that a call to \lstinline|tc_expr| will always compute
 to an assertion.
 
-
 If we know that an expression will successfully evaluate, we can
 eliminate the existentials connected to expression evaluation by
 defining (total) functions \lstinline|eval_expr| and
 \lstinline|eval_lvalue| that will give the same result as the
-operational semantics relation.
+operational semantics relation assuming that the expression
+typechecks. This means that as long as the program logic type checks
+the program logic it can use \lstinline|eval_expr| where it would
+generally need the less convenient $\exists v.~\rho \vdash e\Downarrow_l v$. 
 
 Our typechecker is written in two layers: a translation from type
 contexts and C expressions to \emph{syntactic} type-checking
@@ -592,21 +635,21 @@ precondition or the expression being assigned into \lstinline|x|. To
 see why the substitution is necessary, the following example shows
 what happens if we don't have substitution:
 
-\begin{lstlisting}
+\begin{minted}{coq}
 {eval_id x = 3}
    x = 4;
 {eval_id x = 3 /\ eval_id x = 4}
-\end{lstlisting}
+\end{minted}
 
 For the triple above to hold, the program would need to infinite loop
 on the assignment to \lstinline|x|, which seems unlikely. Instead we
 do the substitution and get:
 
-\begin{lstlisting}
+\begin{minted}{coq}
 {eval_id x = 3}
    x = 4;
 {exists x_old, x_old = 3 /\ eval_id x = 4}
-\end{lstlisting}
+\end{minted}
 
 
 Although subst is a function, in practice it can never be computed.
@@ -620,10 +663,10 @@ tactics it will appear in side conditions. To deal with this the Floyd
 system has an autorewrite database that lets it push subst through
 functions that won't be affected by the substitution. For example
 
-\begin{lstlisting}
+\begin{minted}{coq}
 Lemma subst_sepcon: forall i v (P Q: environ->mpred),
   subst i v (P * Q) = (subst i v P * subst i v Q).
-\end{lstlisting}
+\end{minted}
 
 Fortunately, we don't need a lemma for every function that might
 appear in assertions. Lifted functions can't do anything with the
@@ -647,7 +690,7 @@ There is a situation when a substitution \lstinline|subst $x$ $v$ $P$| can
 be avoided completely. That is when $P$ is \emph{closed} wrt. 
 $x$, also a semantic notion:
 
-\begin{minted}{Coq}
+\begin{minted}{coq}
 Definition closed_wrt_vars {B} (S: ident -> Prop) (F: environ -> B) : Prop := 
   forall rho te',  
      (forall i, S i \/ Map.get (te_of rho) i = Map.get te' i) ->
@@ -731,11 +774,11 @@ meaning we actually need to do a substitution, making sure to replace
 every reference to that variable. One of the requirements of a Coq map
 is:
 
-\begin{lstlisting}
+\begin{minted}{coq}
 Axiom PTree.gss
      : forall (A : Type) (i : positive) (x : A) (m : PTree.t A),
        PTree.get (PTree.set i x m) i = Some x
-\end{lstlisting}
+\end{minted}
 
 This means that if we update $x$ in some PTree, the old mapping of $x$
 will no longer exist, which is the exact definition we want from a
@@ -794,14 +837,14 @@ in programs that make multiple assignments into the same variable. The
 following program is an example of what you might see without improved
 tactics or user cleanup:
 
-\begin{lstlisting}
+\begin{minted}{coq}
 {`eq (eval_id _x) x}
 x = x+1;
 {`eq (eval_id _x) (x0 + 1); `eq (x0 x)}
 x = x+2;
 {`eq (eval_id _x) (x1 + 1); `eq x1 (x0 + 1); `eq x0 x}
 ...
-\end{lstlisting}
+\end{minted}
 
 
 
@@ -849,36 +892,38 @@ categories with respect to their interaction with the reflective
 framework:
 
 \begin{itemize}
-  \item A function that operates on constants and returns a type that can be represented as a constant
-    requires no modification to be used in MirrorCore.
-  \item A function that operates on constants and returns Prop or Type will look exactly
-    the same but return reified results.
-  \item A function that might operate on Coq variables must take reified expressions as 
-    arguments and return a reified result.
+\item A function that operates on constants and returns a type that
+  can be represented as a constant requires no modification to be used
+  in MirrorCore.
+\item A function that operates on constants and returns Prop or Type
+  will look exactly the same but return reified results.
+\item A function that might operate on Coq variables must take reified
+  expressions as arguments and return a reified result.
 \end{itemize}
 
-The first category is convenient, but unfortunately fairly few functions that
-we use fall into this category. The reason that they can return any
-type but Type or Prop is because in general if a function returns a result we
-will want to reason about it, and if it can't be represented by a constant
-we will be unable to do anything with it in the Mirror-Core framework.
+The first category is convenient, but unfortunately fairly few
+functions that we use fall into this category. The reason that they
+can return any type but Type or Prop is because in general if a
+function returns a result we will want to reason about it, and if it
+can't be represented by a constant we will be unable to do anything
+with it in the Mirror-Core framework.
 
 The second category includes the typechecker which returns
-\lstinline|environ -> Prop| that might eventually be discharged
-by either the person writing the proof or some automation. 
-In order to allow reflective automation to have a chance to solve these remaining
+\lstinline|environ -> Prop| that might eventually be discharged by
+either the person writing the proof or some automation.  In order to
+allow reflective automation to have a chance to solve these remaining
 conditions, we must write a new function who instead of returning
-\lstinline|environ -> Prop| returns an \lstinline|expr| whose denotation
-is (provably) the same as the result of the original typechecker called
-on the same arguments.
+\lstinline|environ -> Prop| returns an \lstinline|expr| whose
+denotation is (provably) the same as the result of the original
+typechecker called on the same arguments.
 
-\begin{lstlisting}
+\begin{minted}{coq}
 Definition tc_expr_reif (e : c_expr) (Delta : tycontext) : expr.
 
 Lemma tc_expr_reif_sound_complete : forall tus tvs e Delta,
 exprD' tus tvs (tyarr tyenviron typrop) (tc_expr_reif e Delta) =
 exprD' tus tbs (tyarr tyenviron typrop) (ftc_expr e Delta).
-\end{lstlisting}
+\end{minted}
 
 Notice that the right hand side of the equality in the lemma doesn't
 refer to the original typechecking function but the trivially reified
@@ -926,7 +971,7 @@ difficult because of the size of the reified syntax. One way to
 mitigate the complexity of the code is to create a function that
 matches a reified expression as a tree:
 
-\begin{lstlisting}
+\begin{minted}{coq}
 Definition as_tree (e : expr typ func) : option
   ((typ * expr typ func * expr typ func * expr typ func) + typ) := 
 match e with
@@ -936,7 +981,7 @@ match e with
     Some (inr t)
   | _ => None
 end.
-\end{lstlisting}
+\end{minted}
 
 This allows the function that operates over reified expressions to look very
 similar to original expression, and also simplifies the proof. The function
