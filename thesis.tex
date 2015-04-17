@@ -14,8 +14,11 @@
 \usepackage{caption}
 \usepackage{stmaryrd}
 \usepackage{minted}
+\usepackage{placeins}
 \renewcommand{\lstlistingname}{Figure}
 \input{macros}
+
+
 
 \lstset{language=Coq,alsoletter=_,basicstyle=\sffamily,mathescape=true,columns=fullflexible}
 
@@ -467,17 +470,62 @@ represented by the precondition.
 
 \chapter{Typechecking C Expressions}
 
-The CompCert operational semantics has a partial inductive relation
-$\rho \vdash e\Downarrow v$ for evaluation of an ($r$-value)
-expression $e$ to a value $v$ in environment $\rho$, and another
-relation $\rho \vdash e\Downarrow_l v$ for the $l$-value
-interpretation of an expression.  These relations are inconvenient in
-program proof, as we would frequently need existential variables
-$\exists v.~\rho \vdash e\Downarrow_l v$, and proofs of often trivial
-side-conditions that $v$ exists. This chapter discusses why this
-semantics is written in this manner and why reasoning about the
-semantics by way of a program logics gives us the flexibility to do
-things in a more computational manner.
+A type system is a formalization that assigns properties to various
+parts of a programming language, and describes when a programming
+language uses those parts correctly according to their types. Given
+this definition it is often possible to build a typechecker, a
+decision procedure that answers weather or not a program is well typed
+in a type system. A typechecker is generally meant to be used as part
+of program compilation which means it must be reasonably fast and
+operate without any input besides what is provided as part of the
+program. It restricts the number of valid program, but also guarantees
+certain errors won't occur.
+
+We are not interested in a typechecker that works on an entire program
+at a time but one that works on a single expression or lvalue. It is
+important to us that no errors can occur in the evaluation of this
+expression. To see why, consider a naive Hoare assignment rule for the
+C language.
+\begin{mathpar}
+\inferrule{}
+{\triple{}{P[e/x]}{x:=e}{P}}\qquad\mbox{(naive-assignment)}
+\end{mathpar}
+\FloatBarrier
+
+This rule is not sound with respect to the operational semantics of
+C. We need a proof that $e$ evaluates to a value. It could, for
+example, be a division by zero, in which case the program would crash
+and Hoare triples would not hold. This is an example of the
+mostly-sound property of the C type system. The expression $e$ might
+typecheck in the C compiler, but can still get stuck in the
+operational semantics
+
+A better assignment rule requires $e$ to evaluate:
+
+
+\vspace{-20pt}
+\begin{mathpar}
+\inferrule{\exists v.  e \Downarrow v}
+{\triple{}{P[v/x]}{x:=e}{P}}\mbox{assignment-ex}
+\end{mathpar}
+\FloatBarrier
+
+The proof of this rule is relatively easy, but the rule is inconvenient to
+apply because we must use the operational semantics to show that $v$
+exists. In fact, any time that we wish to talk about the value that
+results from the evaluation of an expression, we must add an existential
+quantifier to our assertion. Showing that an expression evaluates can require a
+number of additional proofs. If our expression is \lstinline|(y / z)|,
+we will need to show that our precondition implies: \lstinline|y| and
+\lstinline|z| are both initialized, \lstinline|z $\not=$ 0|, and 
+\lstinline| $\texttildelow$(y = int_min $\wedge$ z =$\,$-1)|.
+The latter case causes overflow, which is undefined in the C
+standard. These requirements will become apparent as we apply the semantic
+rules, and many of them will be trivially discharged. Even so, the
+proof will be required, when it was likely computationally obvious
+that it was unnecessary. A type system is the answer to this problem,
+but unfortunately C has a mostly sound type system, when we need true soundness.
+
 
 \section{Type soundness of C}
 
@@ -490,22 +538,35 @@ the language. A type checker is typically a decision procedure that
 decides if a program is well typed in a type system. A trivially sound
 type system and type checker reject all programs.
 
-
-
-It is possible to create a type system for C that accepts a reasonable
+It is possible to create a decidable type system for C that accepts a reasonable
 number of programs and is sound with respect to
 a limited notion of ``going wrong''. It is impossible to extend this
 notation to any degree of memory safety, or more usefully to extend it
-to state that a program will always exhibit defined behavior.
+to state that a program will always exhibit defined behavior because
+dynamic properties of the program can decide weather behavior is
+defined or not. Examples are division by zero and dereferencing a null
+pointer. If we consider programs such as
 
+\begin{minted}{c}
+if(undedicable thing){
+x=0;
+}
+3/x;
+\end{minted}
 
+it is clear that we can't hope to prevent such behavior with a
+decision procedure. The best we could do would be to
+disallow operations that might cause undefined behavior, but that
+would leave us with an almost completely useless language with which
+to write typechecking programs. 
 
-In general, it is impossible to have a sound and typechecker
-for C because the safe execution of C programs depends on dynamic
-properties of the program. A C program with a division by $0$, for
-example, will typecheck and then might crash on execution. The
-situation might be worse than crashing too because almost all C
-programs that crash are exhibiting undefined behavior. That means that
+Another option for creating a sound
+type system for C would be to not consider such errors ``going wrong''
+the way that C defines these errors, though, makes this impossible as
+well. A program with division by 0 will generally crash, but this is
+an expectation given by typical experience, not a requirement of the C
+programming language. Almost all C
+programs that crash are actually exhibiting undefined behavior. That means that
 the compiler can generate whatever code it wants and still be a valid
 C compiler. For an example, a valid but unlikabe C compiler could
 generate code that erases your hard drive in place of code that
@@ -524,51 +585,346 @@ pages, 13 of which are used just listing the various undefined
 behaviors), they might never know that their code is exhibiting
 undefined behavior until it causes a problem.
 
+The complete lack of semantics for situations like divison by 0 or
+null pointer dereferences gives good performance, but it also means
+that they must be considered ``going wrong'' because there is no way
+to describe them as expected program behavior. If the language
+definition and semantics said ``return a runtime error and halt on
+division by 0'' such a definition might be possible, but instead it
+says ``do whatever you want on division by 0'' which is what a
+compiler writer wants, but never what a programmer wants. 
 
-Because it is impossible to create a C type system that is sound,
-decidable, and accepts a reasonable number of programs, we use a
-type system that is not decidable, leaving the more difficult parts to
-decide up to the user. This means that our type-checker \cite[Chapter 25]{appel14:plcc} 
-\lstinline|tc_expr ($\Delta$ : tycontext) (e : expr) : tc_assert|
-calculates minimal nontrivial separation-logic
-assertions required for safe evaluation of expressions.  It does this
-with the help of a type-context $\Delta$ that (conservatively) tracks the
-initialization status of all variables; soundness of the program logic
-guarantees that all initialized variables contain defined values of
-the right type. Because the typechecker is a function whose
-result we will use in our program logic, it is important that all of
-its arguments are deeply embedded. The expression comes from a
-concrete compiled program, so we know that it will be made completely
-of constructors. We chose the definition of the type context to be a
-computationally efficient mapping structure indexed by program
-variables that will always have concrete values. This means that we
-can be confident that a call to \lstinline|tc_expr| will always compute
-to an assertion.
+Because the existing type system for C allows behaviors that are
+certainly considered to be going wrong, we say that the C type system
+is \emph{mostly sound}. It stops a number of bad behaviors and reduces
+the number of runtime errors that a program will have, but doesn't
+catch all of them. The C type system is \emph{mostly sound}, because
+it would be impossible to create a decidable typechecker for a sound
+type system. To get around this, we use a type system that is not
+decidable, leaving the really difficult (or impossible) parts up to a
+human.
 
-If we know that an expression will successfully evaluate, we can
-eliminate the existentials connected to expression evaluation by
-defining (total) functions \lstinline|eval_expr| and
-\lstinline|eval_lvalue| that will give the same result as the
-operational semantics relation assuming that the expression
-typechecks. This means that as long as the program logic type checks
-the program logic it can use \lstinline|eval_expr| where it would
-generally need the less convenient $\exists v.~\rho \vdash e\Downarrow_l v$. 
 
-Our typechecker is written in two layers: a translation from type
-contexts and C expressions to \emph{syntactic} type-checking
-assertions, and a denotation function from this syntax into Coq
-propositions \lstinline|Prop|.  We can therefore
-\emph{computationally} simplify assertions even before taking their
-denotation.  Consider the expression \lstinline{3 + x}; the
-precondition needed to evaluate this is 
-\lstinline|True /\ initialized(_x)|. The \lstinline|True| is redundant, but if this
-assertion were generated directly, no more computational progress can
-be made. Instead our context $\Delta$ records that $x$ is an
-initialized integer variable and computes the simplified syntactic
-TC-assertion \lstinline|tc_TT|, whose denotation is \lstinline|True|.
-This simplification improves performance even when using Ltac. We
-further improve performance even in Ltac by using computation to
-simplify our separation logic predicates.
+\section{A Sound C Type System}
+
+Instead we create a sound type system. We know that there is no way to
+create a decidable type-checker for such a type system without
+disallowing a substantial amount of the C language. Fortunately, we
+don't actually need a decidable typechecker because we are using the
+typechecker in the context of a program logic.
+Instead, we build an undecidable typechecker that works on a single
+expression at a time, leaving the hard parts to a human by
+generating simple, minimal preconditions to ensure expression evaluation. We define
+a function \lstinline|typecheck_expr| (Section \ref{sec:typechecker}) to
+tell us when expressions evaluate.
+Now our assignment rules are,
+
+\vspace{-20pt}
+\begin{mathpar}
+\inferrule{ }
+{\tripleD{\Delta}{\mathsf{typecheck\_expr}(e,\Delta)~\wedge~P[e/x]}{x:=e}{P}}\mbox{tc-assignment}
+\and
+\inferrule{ }
+{\tripleD{\Delta}{\mathsf{typecheck\_expr}(e,\Delta)~\wedge~P}{x:=e}{\exists
+v. x = \mathsf{eval}(e[v/x]) \wedge P[v/x]}}\mbox{tc-floyd-assignment}
+\end{mathpar}
+\FloatBarrier
+
+The $\mathsf{typecheck\_expr}$ is not a side condition, as
+it is not simply a proposition (\lstinline|Prop| in Coq)
+but a separation-logic predicate quantified over an environment.  
+To make the rule usable we derive a new rule using the rule of
+consequence:
+
+\vspace{-20pt}
+\begin{mathpar}
+\inferrule{P \longrightarrow \mathsf{typecheck\_expr(e,\Delta)}}
+{\tripleD{\Delta}{P}{x:=e}{\exists
+v. x = \mathsf{eval}(e[v/x]) \wedge P[v/x]}}\mbox{tc-floyd-assignment}
+\end{mathpar}
+\FloatBarrier
+
+Now to apply the rule you must show that the precondition implies
+whatever condition the type checker generates. In this way, our
+typechecker allows outside knowledge about the program, including
+assumptions about the preconditions to the function to be used in
+determining that an expression evaluates. 
+For example, when run on
+the expression $(y/z)$ the typechecker computes to the assertion $z \not= 0 
+\wedge \texttildelow(y \not= \mathsf{int\_min} \vee
+z \not= -1)$ where $z$ and $y$ are not the variables, but the values that
+result when $z$ and $y$ are evaluated in some environment. The assertions
+$\mathsf{initialized}(y)$ and $\mathsf{initialized}(z)$ may not be produced as
+proof obligations if the type-and-initialization context $\Delta$ assures that
+$y$ and $z$ are initialized.
+The calculation of $\Delta$ is also part of our type system.
+
+%TODO maybe this should be a section/chapter like it is in the reflection paper
+We use the Floyd-style forward assignment rule,
+instead of the Hoare-style weakest-precondition rule.
+This is not related to type-checking; separation logic 
+with backward verification-condition generation gives us magic wands which are
+best avoided when possible \cite{berdine05:symbolic}.
+
+In tc\_floyd\_assignment, we use a function $\mathsf{eval}$ which is a
+function that has a similar purpose to compcert's
+\lstinline|eval_expr| relation.  Defining evaluation as a function in
+this manner makes proofs more computational---more efficient to build
+and check.
+
+We simplify \lstinline|eval_expr| in our program logic---and make it
+computational---by leveraging the typechecker's guarantee that
+evaluation will not fail.  Our total recursive function
+\lstinline|eval_expr (e: expr) (rho: environ)|: in environment $\rho$,
+expression $e$ evaluates to the value 
+(\lstinline|eval_expr $e$ $\rho$|).  When \lstinline{CompCert.eval_expr} fails, our own
+\lstinline{eval_expr} (though it is a total function) can return an
+arbitrary value.  We can do this because the function will be run on a
+program that typechecks---the failure is unreachable in practice. We
+then prove the relationship between the two definitions of evaluation
+on expressions that typecheck (we state the theorem in English and in
+Coq):
+\newtheorem{eval_expr_relate}{Theorem}
+\begin{eval_expr_relate}
+For all logical environments $\rho$ that are well typed with respect to a type
+context $\Delta$, if an expression $e$ typechecks with respect to $\Delta$, the
+CompCert evaluation relation relates $e$ to the result of the computational
+expression evaluation of $e$ in $\rho$. 
+\end{eval_expr_relate}
+
+\begin{lstlisting}
+Lemma eval_expr_relate :
+$\forall$ $\Delta$ $\rho$ e m ge ve te,  typecheck_environ $\Delta$ $\rho$ -> mkEnviron ge ve te = $\rho$ ->
+  denote_tc_assert (typecheck_expr $\Delta$ e) $\rho$ ->
+  Clight.eval_expr ge ve te m e  (eval_expr e $\rho$)
+\end{lstlisting}
+
+Expression evaluation requires an environment, but when writing
+assertions for a Hoare logic, we actually write assertions that are
+functions from environments to \lstinline|Prop|. So if we wish to say
+``the expression $e$ evaluates to $5$'', we write 
+\lstinline|fun $\rho$ => eq (eval_expr e $\rho$) 5|.  Because Coq does not match or
+rewrite under lambda (\lstinline|fun|), assertions of this form hinder
+proof automation.  Our solution is to follow Bengtson \emph{et al.}
+\cite{bengtson12} in \emph{lifting} \lstinline|eq| over $\rho$:
+\lstinline|`eq (eval_expr e) `5|.  This produces an equivalent
+assertion, but one that we are able to rewrite and match against. The
+first backtick lifts \lstinline|eq| from \lstinline{val->val->Prop} to
+\lstinline{(environ->val)->(environ->val)->Prop}, and the second
+backtick lifts \lstinline{5} from \lstinline{val} to a constant
+function in \lstinline{environ->val}.
+
+
+\section{C light}
+\label{sec:clight}
+Our program logic is for C, but the C programming language has features that are
+unfriendly to Hoare logic: \emph{side effects within subexpressions} 
+make it impossible to simply talk about ``the value of $e$''  and \emph{taking
+the address of a local variable} means that one cannot reason straightforwardly about
+substituting for a program variable
+(as there might be aliasing).
+
+The first passes of CompCert translate
+\emph{CompCert C} (a refined and formalized version of C90
+\cite{leroy13:compcert}) into \emph{C light}.
+These passes remove side effects from expressions
+and distinguish \emph{nonaddressable} local variables from
+\emph{addressable} locals.\footnote{Xavier Leroy
+added the \lstinline|SimplLocals| pass to CompCert 1.12 at our request,
+pulling nonaddressable locals out of memory in C light.
+Prior to 1.12, source-level reasoning about local
+variables (represented as memory blocks) was  much more difficult.} We recommend
+that the user do this in their C code, however, so that the C light translation
+will exactly match the original program.
+
+C has pointers and permits pointer dereference in subexpressions: \newline
+\lstinline[language=C]|d = p->head+q->head|.
+Traditional Hoare logic is not well suited for pointer-manipulating programs,
+so we use a separation logic, with assertions such as 
+$(p\!\!\rightarrow \! \! \mathrm{head} \mapsto x) *(q \!\! \rightarrow \! \!
+\mathrm{head} \mapsto y)$. Separation logic does not permit pointer-dereference
+in subexpressions, so to reason about 
+\lstinline[language=C]|d = p->head+q->head| 
+the programmer should factor into:
+\lstinline[language=c]|t = p->head; u = q->head; d=t+u;|
+where dereferences occur only at top-level in assignment commands.
+%Because this is a requirement of our logic, and not of CompCert C, this
+%\emph{must} be done by the user or they will get stuck during their proof.
+Adding these restrictions to C light gives us \emph{Verifiable C}, which is not
+a different semantics but a proper sublanguage, enforced by our typechecker.
+
+A well typed C program might still go wrong. These are the cases where the
+typechecker must generate assertions. A few of these cases might be surprising,
+even to experienced C programmers.
+The following operations are undefined in the C standard,
+and \emph{stuck} in CompCert C:
+\begin {itemize}
+  \item shifting an integer value by more than the word size,
+  \item dividing the minimum int by $-1$  (overflows),
+  \item subtracting two pointers with different base addresses (i.e.,
+from different malloc'ed blocks or from different addressable local
+variables),
+  \item casting a float to an int when the float is out of integer range,
+  \item dereferencing a null pointer, and
+  \item using an uninitialized variable.
+\end{itemize}
+
+Some operations, like overflow on integer addition, are undefined in the C standard but defined in
+CompCert. The typechecker permits these cases.
+
+\section{Typechecker} 
+\label{sec:typechecker}
+The typechecker produces assertions that, if satisfied, prove that an
+expression will always evaluate to a value.  
+
+In the C light abstract syntax produced by CompCert from C source code,
+every subexpression is syntactically annotated
+with a C-language type, accessed by \lstinline{(typeof e)}. 
+Thus our typing judgment does not need to be of the
+form $\Delta \vdash e : \tau$, it can be
+$\Delta \vdash e $, meaning that $e$ typechecks according to its
+own annotation.
+
+We define a function to typecheck expressions with respect to a type context:
+
+\begin{lstlisting}
+Fixpoint typecheck_expr ($\Delta$ : tycontext) (e: expr) : tc_assert :=
+  let tcr := typecheck_expr $\Delta$ in $$ match e with
+    | Econst_int _ (Tint _ _ _) => tc_TT 
+    | Eunop op a ty => tc_andp 
+         (tc_bool (isUnOpResultType op a ty) (op_result_type e)) (tcr a) 
+    | Ebinop op a1 a2 ty => tc_andp 
+         (tc_andp (isBinOpResultType op a1 a2 ty)  (tcr a1)) (tcr a2)
+ ... end.
+\end{lstlisting}
+
+\noindent This function traverses expressions emitting
+conditions that ensure that the expressions will evaluate to a value in a
+correctly typed environment. The typechecker is actually a mutually
+recursive function: one function typechecks rvalues and the other
+typechecks lvalues.  For convenience, this paper only discuss rvalues. 
+Although CompCert's operational semantics are written
+as an inductive Coq type, they also have parts that are computational. For
+example, when we need to typecheck operation expressions, we use functions from
+CompCert that \emph{classify} them. The following function is used to typecheck
+binary operations:
+\pagebreak
+\begin{lstlisting}
+Definition isBinOpResultType op a1 a2 ty : tc_assert :=
+match op with
+  | Oadd => match classify_add (typeof a1) (typeof a2) with 
+            | add_default => tc_FF
+            | add_case_ii _ $\hspace{.5mm}$ => tc_bool (is_int_type ty) 
+            | add_case_pi _ $\hspace{.5mm}$ _ => tc_andp (tc_isptr a1) (tc_bool (is_pointer_type ty)) 
+                   ...  end   
+   ... end.
+\end{lstlisting}
+
+Classification functions determine which of the overloaded semantics
+of operators should be used. These semantics are determined based on the types
+of the operands. 
+The C light operational semantics uses
+the constructors (\lstinline|add_case_ii|, \lstinline|add_case_pi|, (and so on))
+to choose whether to apply integer-integer add (\lstinline|ii|),
+pointer-integer add (\lstinline|pi|), and so on.
+The typechecker uses the same constructors
+\lstinline{add_case_ii, add_case_pi,} to choose
+type-checking guards, as shown above.
+
+Despite the reuse of CompCert code on operations, the bulk of the typechecker's
+code checks binary operations. This is because of the
+operator overloading on almost every operator in C. The typechecker looks
+at eight types of operations (shifts, boolean operators, and comparisons can
+be grouped together as they have the exact same semantics with respect to
+the type returned). Each of these has approximately four behaviors in the
+semantics giving a total of around thirty cases that need to be handled individually for binary operations.
+ 
+The code above is a good representation of how the typechecker is
+implemented. The first step is to match on the syntax. Next, if the expression
+is an operation, we use CompCert's classify function to decide which overloaded
+behavior to use. From there, we generate the appropriate assertion. 
+ 
+\section{Soundness}
+\label{sec:tc_sound}
+The soundness statement for our typechecker is:
+
+If the dynamic environment $\rho$ is well typed with respect to the
+static type context $\Delta$ (Section \ref{sec:context}), and the expression
+$e$ typechecks with respect to $\Delta$ producing an assertion that in turn is satisfied in $\rho$, 
+then the value we get
+from evaluating $e$ in $\rho$ (Section \ref{sec:evaluation})
+will match the type that $e$ is labeled with. 
+
+\begin{lstlisting}
+typecheck_environ $\rho$ $\Delta$ = true -> denote_tc_assert (typecheck_expr $\Delta$ e) $\rho$ ->
+typecheck_val (eval_expr e $\rho$) (typeof e) = true.
+\end{lstlisting} 
+
+This guarantees that an expression will evaluate to 
+the right kind of value: integer, or float, or pointer.
+As a corollary we guarantee the absence of \lstinline|Vundef|, which has no
+type.
+
+The proof proceeds by induction on the expression.
+One of the most difficult parts of the soundness proof is the proofs about
+binary operations. We need to prove that when a binary operation typechecks it evaluates to a value as a case for the main soundness
+proof. The proof is difficult because of the number of cases. When all
+integers and floats of different sizes and signedness are taken into account, there are seventeen different CompCert
+types. This means that there are 289 combinations of two types. A proof needs to be
+completed for each combination of types for all seventeen C light operators,
+leading to a total of 4913 cases that need to be proved.
+Each proof requires a decent amount of work, so the amount of memory taken by
+the proof becomes a problem. We use lemmas to group some of the cases together
+to keep the proof time reasonable. 
+
+These cases are not all written by hand: we automate using Ltac.  Still, the
+proofs are large, and Coq takes almost 4 minutes to process the file containing the binary
+operation proofs.
+
+
+% \section{A Sound type system for C}
+
+% Our type-checker \cite[Chapter 25]{appel14:plcc} 
+% \lstinline|tc_expr ($\Delta$ : tycontext) (e : expr) : tc_assert|
+% calculates minimal nontrivial separation-logic
+% assertions required for safe evaluation of expressions.  It does this
+% with the help of a type-context $\Delta$ that (conservatively) tracks the
+% initialization status of all variables; soundness of the program logic
+% guarantees that all initialized variables contain defined values of
+% the right type. Because the typechecker is a function whose
+% result we will use in our program logic, it is important that all of
+% its arguments are deeply embedded. The expression comes from a
+% concrete compiled program, so we know that it will be made completely
+% of constructors. We chose the definition of the type context to be a
+% computationally efficient mapping structure indexed by program
+% variables that will always have concrete values. This means that we
+% can be confident that a call to \lstinline|tc_expr| will always compute
+% to an assertion.
+
+% If we know that an expression will successfully evaluate, we can
+% eliminate the existentials connected to expression evaluation by
+% defining (total) functions \lstinline|eval_expr| and
+% \lstinline|eval_lvalue| that will give the same result as the
+% operational semantics relation assuming that the expression
+% typechecks. This means that as long as the program logic type checks
+% the program logic it can use \lstinline|eval_expr| where it would
+% generally need the less convenient $\exists v.~\rho \vdash e\Downarrow_l v$. 
+
+% Our typechecker is written in two layers: a translation from type
+% contexts and C expressions to \emph{syntactic} type-checking
+% assertions, and a denotation function from this syntax into Coq
+% propositions \lstinline|Prop|.  We can therefore
+% \emph{computationally} simplify assertions even before taking their
+% denotation.  Consider the expression \lstinline{3 + x}; the
+% precondition needed to evaluate this is 
+% \lstinline|True /\ initialized(_x)|. The \lstinline|True| is redundant, but if this
+% assertion were generated directly, no more computational progress can
+% be made. Instead our context $\Delta$ records that $x$ is an
+% initialized integer variable and computes the simplified syntactic
+% TC-assertion \lstinline|tc_TT|, whose denotation is \lstinline|True|.
+% This simplification improves performance even when using Ltac. We
+% further improve performance even in Ltac by using computation to
+% simplify our separation logic predicates.
 
 
 \chapter{Canonical Forms for Assertions}
