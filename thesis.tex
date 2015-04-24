@@ -252,7 +252,11 @@ Inductive True : Prop := I : True.
 Inductive False : Prop.
 \end{minted}
 
-\noindent so if a Coq program is given something of type
+\noindent 
+Gallina programs cannot pattern-match over Propositions; they can
+compute only over inductive data structures, and Prop is not
+inductive.  However, the tactic language can parse (pattern-match on)
+propositions.  so if a Gallina program is given something of type
 \lstinline|Prop|, it has no ability to determine more information
 about it, just like if it is given a polymorphic value it is unable to
 determine what the type of the value is is. That doesn't mean that it
@@ -260,13 +264,13 @@ is impossible to reason about things of type \lstinline|Prop| in
 Coq. Instead of using Gallina to operate on \lstinline|Prop|, Coq has
 tactics, which exist almost exclusively for that reason. A tactic in
 Coq is a program that manipulates a proof state while generating a
-proof object recording its activity. A Coq proof state is
-a goal, or a \lstinline|Prop| to be proved, along with a number of
-quantified variables of any type, and a number of hypothesis of type
-\lstinline|Prop|. Because tactics are used to build proofs, it must keep a
-record any time it makes progress on the proof term so that when the
-proof is over, the record of the proof, or the proof object, can be
-checked.
+proof object recording its activity. A Coq proof state is a goal, or a
+\lstinline|Prop| to be proved, along with a number of quantified
+variables of any type, and a number of hypothesis of type
+\lstinline|Prop|. Because tactics are used to build proofs, it must
+keep a record any time it makes progress on the proof term so that
+when the proof is over, the record of the proof, or the proof object,
+can be checked.
 
 This design means that tactics don't need to be sound. As long as they
 result in a correct proof in the end, it doesn't really matter how
@@ -279,11 +283,13 @@ keeping and modifying the proof object (which can take up substantial
 amounts of memory) can lead to very slow tactic performance.
 
 Logics such as VST's verifiable C program logic are in
-\lstinline|Prop|. Logics in Prop are said to be shallowly
-embedded. They use the syntax of Coq, rather than defining a logic of
-their own. Some systems such as Appel's VeriSmall \cite{} are deeply
-embedded, meaning they define their own syntax, along with a
-denotation that gives meaning to that syntax in Coq's logic. 
+\lstinline|Prop|. Logics in Prop are said to be shallowly embedded.
+Instead of a "deep embedding"--syntax separated from any semantic
+interpretation--a shallow embedding defines each new operator as a
+semantic predicate in the language of propositions.  Some systems
+such as Appel's VeriSmall \cite{} are deeply embedded, meaning they
+define their own syntax, along with a denotation that gives meaning to
+that syntax in Coq's logic.
 
 Shallow and Deep embeddings have tradeoffs in two areas:
 
@@ -300,13 +306,10 @@ the automation that Coq provides. Ltac can be used to write decision
 procedures about the logic without requiring soundness proofs for
 those procedures. A deep embedding, however, will be much harder to
 interact with. To have meaning as a proof goal, a deep embedding will
-need to be wrapped in its denotation function. At this point many of
-the operations users familiar with Coq would expect will require a
-significant amount of work from the creator of the logic. The main
-reason for this is that in a deep embedding every operation on the
-deeply embedded assertion must be proved sound with respect to the
+need to be wrapped in its denotation function. Then every operation on
+the deeply embedded assertion must be proved sound with respect to the
 denotation function. Take Coq's rewrite tactic as an example. In this
-tactic if we have a lemma about an equality for example:
+tactic if we have a lemma about an equality:
 
 \begin{minted}{coq}
 Lemma add_symm : forall a b, a + b = b + a
@@ -419,7 +422,10 @@ Another advantage to a deeply embedded logic is that if there is a
 single decision procedure for it that works all in one function, that
 function can be \emph{extracted} and run in OCaml. This gives the
 performance of an optimized language, with most of the assurance that
-comes with having a proved-sound decision procedure in Coq.
+comes with having a proved-sound decision procedure in Coq. Even if
+there is not a decision procedure, parts of the logic can be executed
+efficiently in Coq using the \lstinline|vm_compute| tactic, which
+compiles Coq to bytecode that can be executed in a virtual machine. 
 
 The technique of computational reflection in Coq aims to combine the
 interactivity of a shallow embedding with the efficiency of a deep
@@ -441,10 +447,10 @@ as if they are tactics, along side all of the other tactics and LTac
 automation that might be built up around a logic.
 
 The process of translating from a shallow embedding to a deep
-embedding is known as reification. Because Coq programs can't match on
+embedding is known as reification. Because Galina programs can't match on
 shallow embeddings, reification must be performed by a
 tactic. Reification leaves us with a deep embedding (or reified
-expression), which allows us to use proved-sound Coq functions to
+expression), which allows us to use proved-sound Gallina functions to
 progress the proof state without large proof terms. When the deep
 embedding is at a state that requires human work, the denotation
 function can be carefully unfolded, or reflected, to return it to a
@@ -452,20 +458,20 @@ shallow embedding that is easy for the user to view and work with.
 
 %graphic from prefpo 
 
-Many shallow embeddings, including VST's logic, have parts that are
-made up completely of constructors. In many program logics, for
-example, the programming language will not be Coq's programming
-language, but a deep embedding of the syntax of the language along
-with a semantics that describes the execution of that syntax in the
-state of the programming language. Because the syntax is a deep
-embedding, it is possible to write Coq functions that reason about
-them, and then prove those functions sound (usually with respect to
-the operational semantics). This is a type of reflection that doesn't
-require reification at all, making it more efficient and allowing it
-to fit cleanly into the shallowly embedded program logic. One such
-example in VST is the typechecker which is used to show that
-expressions in the program successfully evaluate given the state
-represented by the precondition.
+Deep embeddings are purely syntactic; but even shallowly embedded
+languages may have substantial sublanguages that are purely
+syntactic--defined by inductive datatypes rather than semantic
+definitions. In many program logics, for example, the programming
+language will not be a denotational semantics based on Gallina, but an
+operational semantics over syntactic program terms. Because the syntax
+is a deep embedding, it is possible to write Coq functions that reason
+about them, and then prove those functions sound (usually with respect
+to the operational semantics). This is a type of reflection that
+doesn't require reification at all, making it more efficient and
+allowing it to fit cleanly into the shallowly embedded program
+logic. One such example in VST is the typechecker which is used to
+show that expressions in the program successfully evaluate given the
+state represented by the precondition.
 
 
 \chapter{Typechecking C Expressions}
@@ -770,7 +776,11 @@ variables),
 \end{itemize}
 
 Some operations, like overflow on integer addition, are undefined in the C standard but defined in
-CompCert. The typechecker permits these cases.
+CompCert. The typechecker permits these cases. In summary Clight is a
+subset of C where every C representation has a Clight representation
+using only local modifications to the source. Our typechecker
+restricts code to a subset of Clight that is friendly to
+verification. 
 
 \section{Typechecker} 
 \label{sec:typechecker}
@@ -798,17 +808,16 @@ Fixpoint typecheck_expr ($\Delta$ : tycontext) (e: expr) : tc_assert :=
  ... end.
 \end{lstlisting}
 
-\noindent This function traverses expressions emitting
-conditions that ensure that the expressions will evaluate to a value in a
-correctly typed environment. The typechecker is actually a mutually
-recursive function: one function typechecks rvalues and the other
-typechecks lvalues.  For convenience, this paper only discuss rvalues. 
-Although CompCert's operational semantics are written
-as an inductive Coq type, they also have parts that are computational. For
-example, when we need to typecheck operation expressions, we use functions from
-CompCert that \emph{classify} them. The following function is used to typecheck
-binary operations:
-\pagebreak
+\noindent This function traverses expressions emitting conditions that
+ensure that the expressions will evaluate to a value in a correctly
+typed environment. The typechecker is actually a mutually recursive
+function: one function typechecks rvalues and the other typechecks
+lvalues.  For convenience, this paper only discuss rvalues.  Although
+CompCert's operational semantics are written as an inductive Coq type,
+they also have parts that are computational. For example, when we need
+to typecheck operation expressions, we use functions from CompCert
+that \emph{classify} them. The following function leverages
+the classification function to typecheck binary operations: 
 \begin{lstlisting}
 Definition isBinOpResultType op a1 a2 ty : tc_assert :=
 match op with
@@ -820,8 +829,11 @@ match op with
    ... end.
 \end{lstlisting}
 
-Classification functions determine which of the overloaded semantics
-of operators should be used. These semantics are determined based on the types
+Most operators in C are overloaded. For example the addition operator
+works on both integers and pointers, behaving differently if given two
+integers, two pointers, or one of each. 
+Classification functions determine which of these overloaded semantics
+of operators should be used. These semantics are always determined by the types
 of the operands. 
 The C light operational semantics uses
 the constructors (\lstinline|add_case_ii|, \lstinline|add_case_pi|, (and so on))
@@ -831,13 +843,14 @@ The typechecker uses the same constructors
 \lstinline{add_case_ii, add_case_pi,} to choose
 type-checking guards, as shown above.
 
-Despite the reuse of CompCert code on operations, the bulk of the typechecker's
-code checks binary operations. This is because of the
-operator overloading on almost every operator in C. The typechecker looks
-at eight types of operations (shifts, boolean operators, and comparisons can
-be grouped together as they have the exact same semantics with respect to
-the type returned). Each of these has approximately four behaviors in the
-semantics giving a total of around thirty cases that need to be handled individually for binary operations.
+Despite the reuse of CompCert code on operations, the bulk of the
+typechecker checks binary operations. This is because of the operator
+overloading on almost every operator in C. The typechecker looks at
+eight types of operations (shifts, boolean operators, and comparisons
+can be grouped together as they have the exact same semantics with
+respect to the type returned). Each of these has approximately four
+behaviors in the semantics giving a total of around thirty cases that
+need to be handled individually for binary operations.
  
 The code above is a good representation of how the typechecker is
 implemented. The first step is to match on the syntax. Next, if the expression
@@ -860,85 +873,400 @@ typecheck_environ $\rho$ $\Delta$ = true -> denote_tc_assert (typecheck_expr $\D
 typecheck_val (eval_expr e $\rho$) (typeof e) = true.
 \end{lstlisting} 
 
-This guarantees that an expression will evaluate to 
-the right kind of value: integer, or float, or pointer.
-As a corollary we guarantee the absence of \lstinline|Vundef|, which has no
-type.
+The \lstinline|typecheck_val| function guarantees that an expression
+will evaluate to the right kind of value: integer, or float, or
+pointer. It also gives a range on the value that can be expected from
+an integer as opposed to a short or a boolean.  As a corollary we
+guarantee the absence of \lstinline|Vundef|, which has no type.
 
-The proof proceeds by induction on the expression.
-One of the most difficult parts of the soundness proof is the proofs about
-binary operations. We need to prove that when a binary operation typechecks it evaluates to a value as a case for the main soundness
-proof. The proof is difficult because of the number of cases. When all
-integers and floats of different sizes and signedness are taken into account, there are seventeen different CompCert
-types. This means that there are 289 combinations of two types. A proof needs to be
-completed for each combination of types for all seventeen C light operators,
-leading to a total of 4913 cases that need to be proved.
-Each proof requires a decent amount of work, so the amount of memory taken by
-the proof becomes a problem. We use lemmas to group some of the cases together
-to keep the proof time reasonable. 
+The proof proceeds by induction on the expression.  One of the most
+difficult parts of the soundness proof is the proofs about binary
+operations. We need to prove that when a binary operation typechecks
+it evaluates to a value as a case for the main soundness proof. The
+proof is difficult because of the number of cases. When all integers
+and floats of different sizes and signedness are taken into account,
+there are seventeen different CompCert types. This means that there
+are 289 combinations of two types. A proof needs to be completed for
+each combination of types for all seventeen C light operators, leading
+to a total of 4913 cases that need to be proved.  Each proof requires
+a decent amount of work, so the amount of memory taken by the proof
+becomes a problem. We use lemmas to group some of the cases together
+to keep the proof time reasonable.
 
-These cases are not all written by hand: we automate using Ltac.  Still, the
-proofs are large, and Coq takes almost 4 minutes to process the file containing the binary
-operation proofs.
+These cases are not all written by hand: we automate using Ltac.
+Still, the proofs are large, and Coq takes almost 4 minutes to process
+the file containing the binary operation proofs.
 
 
-% \section{A Sound type system for C}
+\section{A Tactical Proof}
+\label{sec:example}
+Now we will show an exmple of applying the C light program logic to verify a simple C program
+interactively in Coq. We will verify the C program: 
 
-% Our type-checker \cite[Chapter 25]{appel14:plcc} 
-% \lstinline|tc_expr ($\Delta$ : tycontext) (e : expr) : tc_assert|
-% calculates minimal nontrivial separation-logic
-% assertions required for safe evaluation of expressions.  It does this
-% with the help of a type-context $\Delta$ that (conservatively) tracks the
-% initialization status of all variables; soundness of the program logic
-% guarantees that all initialized variables contain defined values of
-% the right type. Because the typechecker is a function whose
-% result we will use in our program logic, it is important that all of
-% its arguments are deeply embedded. The expression comes from a
-% concrete compiled program, so we know that it will be made completely
-% of constructors. We chose the definition of the type context to be a
-% computationally efficient mapping structure indexed by program
-% variables that will always have concrete values. This means that we
-% can be confident that a call to \lstinline|tc_expr| will always compute
-% to an assertion.
+\begin{lstlisting}[language=c]
+int assigns (int a) { int b, c; c = a*a; b = c/3; return b; }
+\end{lstlisting}
 
-% If we know that an expression will successfully evaluate, we can
-% eliminate the existentials connected to expression evaluation by
-% defining (total) functions \lstinline|eval_expr| and
-% \lstinline|eval_lvalue| that will give the same result as the
-% operational semantics relation assuming that the expression
-% typechecks. This means that as long as the program logic type checks
-% the program logic it can use \lstinline|eval_expr| where it would
-% generally need the less convenient $\exists v.~\rho \vdash e\Downarrow_l v$. 
+We begin by passing our program through the CompCert \lstinline|clightgen| tool
+to create a .v file that we can read into Coq. The next step is to specify our program. The
+specification for this program is:
 
-% Our typechecker is written in two layers: a translation from type
-% contexts and C expressions to \emph{syntactic} type-checking
-% assertions, and a denotation function from this syntax into Coq
-% propositions \lstinline|Prop|.  We can therefore
-% \emph{computationally} simplify assertions even before taking their
-% denotation.  Consider the expression \lstinline{3 + x}; the
-% precondition needed to evaluate this is 
-% \lstinline|True /\ initialized(_x)|. The \lstinline|True| is redundant, but if this
-% assertion were generated directly, no more computational progress can
-% be made. Instead our context $\Delta$ records that $x$ is an
-% initialized integer variable and computes the simplified syntactic
-% TC-assertion \lstinline|tc_TT|, whose denotation is \lstinline|True|.
-% This simplification improves performance even when using Ltac. We
-% further improve performance even in Ltac by using computation to
-% simplify our separation logic predicates.
+\[\tripleD{\Delta}{\mathsf{Vint}(v)=\mathrm{eval}\,\mathsf{a}\,\rho}
+{\mathsf{assigns}\ldots}{\mathsf{retval}\,\rho = \mathsf{Vint}((v * v) /
+3)}\]
+
+Barring any unexpected evaluation errors, we expect this specification to hold.
+The specification states that in an arbitrary initial state, the program will either
+infinite loop or terminate in a state in which \lstinline|retval = (a*a)/3|. For this
+example we will focus on proving the specification of the function
+body. We will take the proof step by step later, the following shows
+how automated the entire proof is:
+
+\pagebreak
+
+\begin{lstlisting}
+Lemma body_test : semax_body Vprog Gtot f_assigns assign_spec.
+Proof. start_function. name a _a. name b _b. name c _c.
+       forward. forward. entailer!. forward. entailer. 
+       (* ... prove that the function-body postcondition implies the
+       function-specification postcondition ... *) Qed.
+\end{lstlisting}
+
+In fact, the entire proof could easily be completed by one tactic:
+
+\begin{lstlisting}
+repeat (forward; try solve[entailer!])
+\end{lstlisting}
+
+But I show the steps here so that they can be understood.
+
+The function \lstinline|semax_body| creates a triple for a function body given a
+list of global variable specifications (\lstinline|Vprog|, the empty list), a
+list of global function specifications (\lstinline|Gtot|, list of this function and
+main), the pointer to the function (\lstinline|f_assigns|, pointer from
+program .v file), and a specification (\lstinline|assign_spec|, the Coq version
+of the triple shown above). The tactic \lstinline|start_function| unfolds
+\lstinline|semax_body| and ensures that the precondition is in a usable form.
+The relation \lstinline|semax| defines the triple we have seen throughout the
+paper.
+
+The \lstinline|name| tactic, and
+the \lstinline|name| hypotheses it generates, relate variable names to value
+names. For example \lstinline|_a| is the name of the variable \lstinline|a| in
+the program. The tactic \lstinline|name a _a| tells the tactics that values
+associated with evaluating \lstinline|_a| should be called \lstinline|a|.
+
+We will examine the proof state at a few points to highlight the
+\lstinline|forward| and \lstinline|entailer| tactics and show goals generated by
+the typechecker. We have replaced C light AST with C-like syntax in the lines
+marked \lstinline|(* pseudocode *)|. Assertions are in a canonical form,
+separated into \lstinline|PROP| (propositions that don't require state), \lstinline|LOCAL| (assertions lifted over the local environment), and
+\lstinline|SEP| (separation assertions over memory). Empty assertions for any of
+these mean \lstinline|True|.
+
+\begin{lstlisting}
+  a : name _a
+  b : name _b
+  c : name _c
+  $\Delta$ := initialized _c (func_tycontext f_assigns Vprog Gtot) : tycontext
+  ============================
+   semax $\Delta$  (PROP  () $$ 
+   LOCAL (`eq (eval_id _c) (eval_expr(_a * _a)); (`eq (eval_id _a) v)) $$ SEP ()) 
+      (_b = _c / 3; return _b;)   (* pseudocode standing for C-light AST *) 
+      (function_body_ret_assert tint (_a * _a / 3)  = retval)
+\end{lstlisting}
+
+Above is the state after we apply \lstinline|forward| for the first time.  This tactic
+performs forward symbolic execution using Coq tactic programs, as
+various authors have demonstrated
+\cite{appel06,chlipala11:pldi,bengtson12,mccreight09}. In effect,
+\lstinline|forward| applies the appropriate Hoare rule for the next command,
+using the sequence rule if necessary. The backtick (\lstinline|`|) is the
+``lifting'' coercion of Bengtson \emph{et al.} \cite{bengtson12}. 
+\lstinline|function_body_ret_assert| tells us that our
+postcondition talks about the state when the program returns successfully. A
+program that does not return successfully will not satisfy this triple.
+
+The \lstinline|forward| tactic makes a decision when it sees an assignment. In
+general, it uses the Floyd assignment rule that existentially quantifies the
+``old'' value of the variable being assigned to (in this case \lstinline|c|). It
+needs to do this because otherwise we would lose information from our
+precondition by losing the old value of \lstinline|c|. This means the
+postcondition would end up in the form "\lstinline|exists old, ...|''. If the
+variable doesn't appear in the precondition, however, the existential can be
+removed because it will never be used. The \lstinline|forward| tactic checks to
+see if it needs to record the old value of the variable or not. In this case,
+it sees that \lstinline|c| is not in the precondition and does not record its
+old value.
+
+In the proof so far (after symbolic execution of the
+command \lstinline{c=a*a;})
+we have not yet seen a typechecking side condition---not 
+because they were automatically
+solved, but because they were never generated in the first place. They were checked
+computationally, but no assertion about them is given. The condition that $a$ be
+initialized immediately evaluates to \lstinline|True| and is dispelled trivially.  
+
+Finally we notice that $\Delta$ has been updated with 
+\lstinline|initialized _c|. This was done by the sequence rule as discussed in
+Section \ref{sec:context}.
+
+Applying \lstinline|forward| again gives 
+the following separation-logic side condition: 
+
+\begin{lstlisting}
+  a : name _a
+  b : name _b
+  c : name _c
+  $\Delta$ := initialized _b (initialized _c (func_tycontext f_assigns Vprog Gtot) : tycontext 
+  ============================
+   PROP() $$ LOCAL(tc_environ $\Delta$; `eq (eval_id _c) (eval_expr (_a * _a)); (`eq (eval_id _a) v)) 
+   SEP(`TT) |-- local (tc_expr $\Delta$ (_c /  3)) && local (tc_temp_id _b tint $\Delta$)
+\end{lstlisting}
+\noindent This is an entailment, asking us to prove the right hand side given
+the left hand side. We need to show that the expression on the right hand side
+of the assignment typechecks, and that the id on the left side typechecks. We
+would expect to see that: $c$ is initialized, $3\neq 0$ and
+$\texttildelow(c=\mathsf{min\_int} \wedge 3 = -1)$.
+
+\emph{Why is it useful to have} \lstinline{tc_environ $\Delta$}?
+This entailment is \emph{lifted} (and quantified) over an abstract
+\lstinline|environ| $\rho$; if we were to \lstinline|intro $\rho$| and make it
+explicit, then we would have conditions about \lstinline{eval_id _c $\rho$},
+and so on.  
+To prove these entailments, we need to know that
+\lstinline{(eval_id _a $\rho$)}  and 
+\lstinline{(eval_id _c $\rho$)}  are defined and well-typed.
+
+In a paper proof it is convenient to think of an 
+integer \emph{variable} \lstinline{_a}
+as if it were the same as the \emph{value} obtained when looking 
+\lstinline{_a} up in
+environment $\rho$---we write this (\lstinline|eval_id _a $\rho$|). In general,
+we can not think this way about C programs because in an arbitrary environment,
+\lstinline|_a| may be of the incorrect type or uninitialized. In an environment
+$\rho$ that typechecks with respect to some context $\Delta$, however, we can bring this
+way of thinking back to the user. 
+Our automatic \lstinline|go_lower| tactic, after introducing $\rho$,
+uses the \lstinline{name} hints to replace every use
+of (\lstinline|eval_id _a $\rho$|) with simply \lstinline{a},
+\emph{and} it proves a hypothesis that the value
+\lstinline|a| has the expected type.  In the case of an \lstinline{int},
+it does one step more: knowing that  the value 
+(\lstinline|eval_id _a $\rho$|) typechecks implies it must 
+be \lstinline|Vint $x$| for some $x$, so it introduces \lstinline|a|
+as that value $x$.  (Again, the name \lstinline|a| is chosen from
+the hint, \lstinline|a: name _a|.)
+Thus, the user can think about values, not about evaluation, just
+as in a paper proof.
+Our \lstinline|go_lower| tactic, followed by \lstinline|normalize| for
+simplification converts the entailment into
+
+\begin{lstlisting}
+  c : int
+  a : int
+  H0 :  Vint c = Vint (Int.mul a a) (*simplified*)
+  ============================
+   denote_tc_nodivover (Vint c) (Vint (Int.repr 3))
+\end{lstlisting}
+All we are
+left with is the case that the division doesn't overflow. 
+The other conditions ($c$ is initialized, $3\neq 0$ ) have 
+computed to \lstinline|True| and simplified away. 
+We can no longer see the variables \lstinline|_c| and \lstinline|_a|.
+
+% Instead we see (32-bit) integer Coq variables \lstinline{c, a}.
+% This is because of the work done by \lstinline|go_lower|. Proving a ``lifted''
+% entailment (where the antecedent and consequent both have the type
+% \lstinline{environ->predicate})
+% can be done by introducing an environment variable $\rho$,
+% then unlifting \cite{bengtson12}, 
+% so that (for example) the precondition
+% will contain \linebreak
+% \lstinline|(eval_id _c $\rho$ = eval_id _a $\rho$ * eval_id _a $\rho$)|.
+% Our tactics have then replaced all occurrences of
+% \lstinline|(eval_id _c $\rho$)| with simply \lstinline{c},
+% using the \lstinline|name| hypotheses to choose
+% the variable name \lstinline{c}.
+% The fact that \lstinline|c| must be a defined (initialized)
+% \lstinline|int| value is proved by \lstinline|go_lower|
+% using information from the typechecker.
+
+Now we can apply some simple Boolean
+rewrite rules with \lstinline|solve_tc| and solve the goal.
+Not all typechecker-introduced assertions will be so easy
+to solve, of course; in place of \lstinline|solve_tc|
+the user might have to do some real work.
+
+The rest of the proof advances through the return statement, then proves that
+the postcondition after the return matches the postcondition for the 
+specification. In this case it is easy, just a few unfolds and rewrites.
+
+
+\section{Related Work}
+Frama-C is a framework for verifying C programs \cite{cuoq2012frama}. It presents a unified assertion
+language to enable static analysis cooperation. The assertion language allows users to specify only first-order properties 
+about programs, and does not include separation logic. The Value analysis \cite{canet2009value} uses abstract interpretation to determine possible values, giving errors for programs
+that might have runtime errors. The WP plugin uses weakest precondition calculus to verify triples. 
+WP is only correct when first running Value which may result in some verification
+conditions that can then be verified by WP along with the function specifications. Frama-C does not seem to have any
+soundness proof.
+
+VCC is a verifier for concurrent C programs. It works by translating C programs to 
+Boogie, which is a combination of an intermediate language, a VC generator, and an
+interface to pass VCs off to SMT solvers such as Z3.
+VCC adds verification conditions that ensure that expressions
+evaluate.
+
+Greenaway \emph{et al.} \cite{greenaway12} show a verified conversion from C
+into a high-level specification that is easy for users to read. They do this
+by representing the high-level specification in a monadic language.
+They add guards during their translation out of C in order to ensure
+expression evaluation (this is done by Norrish's C parser
+\cite{norrish:parser}). Many of these guards will eventually be removed
+automatically. Their tool is proved correct with respect to the semantics of an
+intermediate language, not the semantics of C. The expression evaluation guards are there
+to ensure that expressions always evaluate in the translated program, because
+there is no concept of undefined operations in the intermediate language.
+Without formalized C semantics, however, the insertion of guards must be
+trusted to actually do this. This differs from our approach where the
+typechecker is proved sound with respect to a C operational semantics;
+so we have more certainty that we have found all the necessary side conditions.
+Another difference is that they produce all the additional guards and then
+solve most of them automatically,  while we avoid creating
+most such assertions. Expression evaluation
+is not the main focus of Greenaway's work, however, and the ideas presented for
+simplifying C programs could be useful in conjunction with our work. 
+
+Bengtson \emph{et al.} \cite{bengtson12} provide a framework for verifying
+correctness of Java-like programs with a higher-order separation logic similar
+to the one we use. They use a number of Coq tactics to greatly simplify
+interactive proofs. Chlipala's Bedrock project
+\cite{chlipala11:pldi} also aims to decrease the tedium of separation logic
+proofs in Coq, with a focus on tactical- and reflection-based 
+automation of proofs about low level programs. Bengtson operates on a Java-like
+language and Chlipala uses a simple but expressive low-level
+continuation-based language.
+%Both of these projects focus on the length of the proof
+%but don't mention how quickly the proofs compile in Coq. 
+Earlier versions of our
+work (Appel \cite{appel06}) used a number of
+tactics to automate proofs as well. In this system, the user was left with the
+burden of completing proofs of expression evaluation.
+
+The proof rules we use in this paper are also used in the implementation of a
+verified symbolic execution called VeriSmall \cite{appel11:verismall}. 
+VeriSmall does efficient, completely automatic 
+shape analysis.  
+
+Tuerk's HolFoot \cite{Tuer09} is a tactical system in HOL for
+separation logic proofs in an imperative language.  Tuerk uses an
+idealized language ``designed to resemble C,'' so he did not have to
+address many of the issues that our typechecker resolves.
+
+One of Tuerk's significant claims for HolFoot is that his tactics
+solve purely shape-analysis proofs without any user assistance, and as
+a program specification is strengthened from shape properties to
+correctness properties, the system smoothly ``degrades'' leaving more
+proof obligations for the interactive user.  This is a good thing.  As
+we improve our typechecker to include more static analysis, we hope to
+achieve the same property, with the important improvement that the
+static analysis will run much faster (as it is fully reified), and
+only the user's proof goals will need the tactic system.
+
+Our implementation of computational evaluation is similar to work on
+executable C semantics by Ellison and Rosu \cite{ellison-rosu-2012-popl} or
+Campbell \cite{Campbell-cpp-12}. Their goals are different, however.
+Campbell, for example, used his implementation to find bugs in the
+specification of the CompCert semantics. We, on the other hand, are accepting
+the CompCert semantics as the specification of the language we are operating
+on. Ellison and Rosu have the goal of showing program correctness, which is a 
+similar goal to ours. They show program correctness by using their semantics as
+a debugger or an engine for symbolic execution.
 
 
 \chapter{Canonical Forms for Assertions}
 
-VST uses assertions to reason about programs, but what does 
-it require about the form of these assertions? This chapter
-discusses that, as well as how restricting the form of
-assertions improve both the usability and the performance
-of symbolic execution.
+VST uses assertions to reason about programs, but what does it require
+about the form of these assertions? This chapter discusses that, as
+well as how restricting the form of assertions improve both the
+usability and the performance of symbolic execution.
 
-\section{Semi-Canonical Form}
+All assertions in VST's logic take an \lstinline|environ| as an
+argument. This is because the environment will remain fully abstract
+during the symbolic execution performed using the assertions. The
+symbolic execution proceeds not by inserting symbolic values into an
+environment, but by writing (likely symbolic) assertions about the
+values. To do this, we simply add an assertion about the value of a
+variable when it is looked up in the environment. The function for
+looking up an unaddressed variable in an envionment is
+\lstinline|eval_id|. We can write an assertion of type
+\lstinline|environ -> Prop| about variable $x$ in environment $rho$:
 
-We previously described \cite{appel14:plcc} assertions in the form
-~~\lstinline{PROP $~P$ LOCAL $~Q$ SEP $~R$}.  Here each item in
+\begin{lstlisting}
+(fun $\rho$ => eval_id $x$ $\rho$ = 4)
+\end{lstlisting}
+
+Or equivalently, hiding the environment by using the lifting operator:
+
+\begin{lstlisting}
+`eq (eval_id $x$) `4
+\end{lstlisting}
+
+Simply referring to the environment is not enough to specify a C
+program because C programs also refer to the heap. An assertion in
+VST's logic can be any semantic predicate of type 
+\lstinline|environ -> mpred|. 
+\lstinline|mpred| is the type of separation logic assertions over C
+memory. Separation logic has operators that make it particularly
+convenient to reason about programs that might have pointer
+aliasing. It does this by providing the \emph{separating conjunction}
+( * ) operator, which means that if there are two pointers $p_1$ and
+$p_2$ that point at values $v_1$ and $v_2$ (using the \emph{mapsto}
+operator $\mapsto$) the assertion $p_1 \mapsto v_1 * p_2 \mapsto v_2$
+means that $v_1$ and $v_2$ must be located at different positions in
+the heap. We can also say that it tells us that $p_1$ and $p_2$ are
+not aliases for each other. More formally, a heap that satisfies
+$P * Q$ can be partitioned into two sub-heaps, one satisfying $P$ and
+the other satisfying $Q$.
+
+This is very useful in C programs because the following triple holds
+
+$\triple{p_1 \mapsto v_1 * p_2 \mapsto v_2}{p_1 := v_3}{p_1 \mapsto v_3 * p_2 \mapsto v_2}$
+
+We only had to update one part of the assertion because we were
+certain that $p_1$ and $p_2$ point to different locations in memory. If
+we had used standard conjunction we would have needed to know the fact
+$p_1 \neq p_2$. That fact isn't a problem in a small examples, but the
+number of such inequalities you would need to know is quadratic with
+the number of references to variables in the assertion. 
+
+Of course, not all parts of an assertion need to be about memory. Some
+parts might just refer to the environment, in which case we use the
+\lstinline|local : (environ -> Prop) -> (environ -> mpred)|
+operator. We might also need pure facts which we denote with
+\lstinline|!! : Prop -> (environ -> mpred)|. To combine pure facts
+with separation facts we can use the \lstinline|&&| operator which is simply the
+and operator on \lstinline|mpred|. Putting those together we can write
+an assertion such as
+
+\begin{lstlisting}
+!!(x = 3) &&
+local (`eq (eval_id _x)  `x) &&
+(p1 $\mapsto$ x * p2 $\mapsto$ 5)cc
+\end{lstlisting}
+
+Appel et al. organized these assertions into a $\PROP$/$\LOCAL$/$\SEP$
+form to make them easier to manipulate in proofs. I will describe this
+\emph{semicanoncial form} in section \ref{sec:scform}. Then I will
+improve on that form, which will makes proof easier to automate than
+they were in semicanonical form. This \emph{canonical form} is
+described in Section \ref{sec:cform}
+
+\section{Semicanonical Form}
+\label{sec:scform}
+We say that assertions written~\lstinline{PROP $~P$ LOCAL $~Q$ SEP $~R$}  
+are in semicanonical form. Here each item in
 \lstinline|$P$:list prop| is a pure assertion that doesn't refer to
 the program state. \lstinline|$Q$: list (environ -> prop)| contains
 assertions that can reason about local variables.  and 
@@ -950,19 +1278,25 @@ $\SEP$ folds the separation logic \lstinline|*|, or separating
 conjunction operator. $P$, $Q$, and $R$, are represented as lists
 because, particularly in the case of $\SEP$, it is convenient to refer
 to the $n$th conjunct. This is much easier to implement when our
-assertion is restricted to a flat sequence of conjunctions.  We say
-that assertions in this form are in semi-canonical form.
+assertion is restricted to a flat sequence of conjunctions. The
+precise definition of \lstinline{PROP $~P$ LOCAL $~Q$ SEP $~R$} is:
+\pagebreak
+\begin{lstlisting}
+!!(fold_right ( $\wedge$ ) True P) &&
+local(fold_right ( `$\wedge$ ) `True Q) &&
+(fold_right ( * ) emp R)
+\end{lstlisting}
 
-At the lowest level, the Verifiable C logic rules are agnostic to any
+The lowest level Verifiable C logic rules are agnostic to any
 structure that the assertion might have. The rules refer to
 assertions as single variables, using entailments to constrain them
 rather than imposing syntactic requirements on them. The Floyd
 automation system has higher level lemmas that require assertions
-to be in semi-canonical form, but also guarantee that the side
-conditions that result from using the rules will be in semi-canonical
+to be in semicanonical form, but also guarantee that the side
+conditions that result from using the rules will be in semicanonical
 form.
 
-\subsection{Substitution in semi-canonical form}
+\subsection{Substitution in semicanonical form}
 
 At the Verifiable C level, there is no choice but to use a semantic
 notion of substitution called \linebreak
@@ -1070,7 +1404,7 @@ there are numerous cases where this rule doesn't apply, so the
 substitution will still appear.
 
 \section{Canonical Form}
-
+\label{sec:cform}
 The reason that substitutions are difficult, and that they need to be
 semantic is because there is no \emph{syntactic} restriction on where
 any individual identifier can appear within an assertion.  Canonical
@@ -1145,17 +1479,21 @@ value. It is simple enough to turn a C expression into an
 \lstinline|environ->val| using the \lstinline|eval_expr| function
 discussed in \ref{}, but that expression could have references to
 identifiers, which we can't have if we want syntactic
-substitution. Instead we can write a different version of
-\lstinline|eval_expr| called \lstinline|msubst_eval_expr|. The only
-difference between the two functions is that when
-\lstinline|msubst_eval_expr| needs to evaluate a variable it doesn't
-do it in and environment. Instead, it performs the lookup in PTrees
-$T_1$ or $T_2$ mentioned earlier. In other words, if
-\lstinline|eval_expr| evaluates an expression in an environment,
-\lstinline|msubst_eval_expr| symbolically evaluates an expression in
-an assertion. This symbolic evaluation is partial because there might
-not be any information about a variable in the assertion. So in our
-lemma we require \lstinline|msubst_eval_expr| to succeed:
+substitution. Instead we can take advantage of the syntactic
+expressions to write a standard, easily computable syntactic
+substitution that implies the substitution fact we need when applied
+to canonical expressions. We use this technique to create
+\lstinline|msubst_eval_expr|.  When \lstinline|msubst_eval_expr| needs
+to evaluate a variable it doesn't do it in an environment. Instead, it
+performs the lookup in PTrees $T_1$ or $T_2$ mentioned
+earlier. Instead of (first) performing a syntactic substitution and
+(then) symbolic-evaluating the expression as we needed to do before
+evaluating \lstinline|eval_expr|, \lstinline|msubst_eval_expr| does both in one
+pass, enabled by the deeply embedded form our local assertions.  The
+symbolic evaluation performed by \lstinline|msubst_eval_expr| is partial
+because there might not be any information about a variable in the
+assertion. So in our lemma we require \lstinline|msubst_eval_expr| to
+succeed:
 
 \begin{lstlisting}
 Axiom semax_PTree_set: $~~$forall $\Delta$ id P T1 T2 R $e$ v,
@@ -1204,7 +1542,7 @@ x = x+2;
 
 
 
-Semi-canonical form is very convenient for the user when
+Semicanonical form is very convenient for the user when
 \emph{writing} assertions. The list notation is great for combining
 assertions without having to remember the exact conjunction that must
 be used for each part. It also allows the $\LOCAL$ to remain small,
