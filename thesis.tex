@@ -476,16 +476,16 @@ state represented by the precondition.
 
 \chapter{Typechecking C Expressions}
 
-A type system is a formalization that assigns properties to various
-parts of a programming language, and describes when a programming
-language uses those parts correctly according to their types. Given
-this definition it is often possible to build a typechecker, a
-decision procedure that answers weather or not a program is well typed
-in a type system. A typechecker is generally meant to be used as part
-of program compilation which means it must be reasonably fast and
-operate without any input besides what is provided as part of the
-program. It restricts the number of valid program, but also guarantees
-certain errors won't occur.
+A type system is a formalization that assigns types to various parts
+of a programming language and describes when a programming language
+uses those parts correctly according to their types.  It is often
+possible to build a decision procedure that answers weather or not a
+program is well typed in a type system. This decision procedure is
+known as a typechecker.  A typechecker is generally meant to be used
+as part of program compilation which means it should be reasonably
+fast and operate with the program as it's sole input. It restricts the
+number of valid programs while guaranteeing certain errors won't
+occur.
 
 We are not interested in a typechecker that works on an entire program
 at a time but one that works on a single expression or lvalue. It is
@@ -494,15 +494,14 @@ expression. To see why, consider a naive Hoare assignment rule for the
 C language.
 \begin{mathpar}
 \inferrule{}
-{\triple{}{P[e/x]}{x:=e}{P}}\qquad\mbox{(naive-assignment)}
+{\tripleD{}{P[e/x]}{x:=e}{P}}\qquad\mbox{(naive-assignment)}
 \end{mathpar}
 \FloatBarrier
 
 This rule is not sound with respect to the operational semantics of
 C. We need a proof that $e$ evaluates to a value. It could, for
 example, be a division by zero, in which case the program would crash
-and Hoare triples would not hold. This is an example of the
-mostly-sound property of the C type system. The expression $e$ might
+and Hoare triples would not hold. The expression $e$ might
 typecheck in the C compiler, but can still get stuck in the
 operational semantics
 
@@ -512,7 +511,7 @@ A better assignment rule requires $e$ to evaluate:
 \vspace{-20pt}
 \begin{mathpar}
 \inferrule{\exists v.  e \Downarrow v}
-{\triple{}{P[v/x]}{x:=e}{P}}\mbox{assignment-ex}
+{\tripleD{}{P[v/x]}{x:=e}{P}}\mbox{assignment-ex}
 \end{mathpar}
 \FloatBarrier
 
@@ -536,17 +535,17 @@ but unfortunately C has a mostly sound type system, when we need true soundness.
 \section{Type soundness of C}
 
 A type system is sound with respect to an operational semantics if a
-well typed program will never go wrong. Go wrong can mean a variety of
-things depending on the goal of the type system, going wrong could be
+well typed program will never go wrong. That can mean a variety of
+things depending on the goal of the type system. Going wrong could be
 a runtime error caused by a failed type conversion, dereferencing a
 null pointer, or entering a state not described by the semantics of
 the language. A type checker is typically a decision procedure that
-decides if a program is well typed in a type system. A trivially sound
+decides if a program is well-typed in a type system. A trivially sound
 type system and type checker reject all programs.
 
 It is possible to create a decidable type system for C that accepts a reasonable
 number of programs and is sound with respect to
-a limited notion of ``going wrong''. It is impossible to extend this
+a limited notion of ``going wrong''. It is impossible, however, to extend this
 notation to any degree of memory safety, or more usefully to extend it
 to state that a program will always exhibit defined behavior because
 dynamic properties of the program can decide weather behavior is
@@ -554,9 +553,7 @@ defined or not. Examples are division by zero and dereferencing a null
 pointer. If we consider programs such as
 
 \begin{minted}{c}
-if(undedicable thing){
-x=0;
-}
+if(undedicable thing){ x=0; }
 3/x;
 \end{minted}
 
@@ -567,10 +564,10 @@ would leave us with an almost completely useless language with which
 to write typechecking programs. 
 
 Another option for creating a sound
-type system for C would be to not consider such errors ``going wrong''
-the way that C defines these errors, though, makes this impossible as
+type system for C would be to not consider such errors ``going wrong''.
+The way that C defines these errors makes this impossible as
 well. A program with division by 0 will generally crash, but this is
-an expectation given by typical experience, not a requirement of the C
+an expectation given by experience with a selection of C compilers, not a requirement of the C
 programming language. Almost all C
 programs that crash are actually exhibiting undefined behavior. That means that
 the compiler can generate whatever code it wants and still be a valid
@@ -596,9 +593,10 @@ null pointer dereferences gives good performance, but it also means
 that they must be considered ``going wrong'' because there is no way
 to describe them as expected program behavior. If the language
 definition and semantics said ``return a runtime error and halt on
-division by 0'' such a definition might be possible, but instead it
-says ``do whatever you want on division by 0'' which is what a
-compiler writer wants, but never what a programmer wants. 
+division by 0'' such a definition might be possible, but instead the C
+standard says ``do whatever you want on division by 0'' which is what
+a compiler writer wants, but much useful to a programmer interested in
+correctness.
 
 Because the existing type system for C allows behaviors that are
 certainly considered to be going wrong, we say that the C type system
@@ -616,14 +614,13 @@ human.
 Instead we create a sound type system. We know that there is no way to
 create a decidable type-checker for such a type system without
 disallowing a substantial amount of the C language. Fortunately, we
-don't actually need a decidable typechecker because we are using the
-typechecker in the context of a program logic.
-Instead, we build an undecidable typechecker that works on a single
-expression at a time, leaving the hard parts to a human by
-generating simple, minimal preconditions to ensure expression evaluation. We define
-a function \lstinline|typecheck_expr| (Section \ref{sec:typechecker}) to
-tell us when expressions evaluate.
-Now our assignment rules are,
+don't need a decidable typechecker because it is used in the context
+of an interactively applied program logic.  Instead, we build an
+undecidable typechecker that works on a single expression at a time,
+leaving the hard parts to a human by generating simple, minimal
+preconditions to ensure expression evaluation. We define a function
+\lstinline|typecheck_expr| (Section \ref{sec:typechecker}) to tell us
+when expressions evaluate.  Now our assignment rules are,
 
 \vspace{-20pt}
 \begin{mathpar}
@@ -638,7 +635,7 @@ v. x = \mathsf{eval}(e[v/x]) \wedge P[v/x]}}\mbox{tc-floyd-assignment}
 
 The $\mathsf{typecheck\_expr}$ is not a side condition, as
 it is not simply a proposition (\lstinline|Prop| in Coq)
-but a separation-logic predicate quantified over an environment.  
+but a separation-logic predicate quantified over an environment (Chapter \ref{ch:canonical}).  
 To make the rule usable we derive a new rule using the rule of
 consequence:
 
@@ -650,11 +647,11 @@ v. x = \mathsf{eval}(e[v/x]) \wedge P[v/x]}}\mbox{tc-floyd-assignment}
 \end{mathpar}
 \FloatBarrier
 
-Now to apply the rule you must show that the precondition implies
+To apply the rule you must show that the precondition implies
 whatever condition the type checker generates. In this way, our
 typechecker allows outside knowledge about the program, including
-assumptions about the preconditions to the function to be used in
-determining that an expression evaluates. 
+assumptions about the preconditions to the function to be used to
+decide if an expression evaluates. 
 For example, when run on
 the expression $(y/z)$ the typechecker computes to the assertion $z \not= 0 
 \wedge \texttildelow(y \not= \mathsf{int\_min} \vee
@@ -743,10 +740,13 @@ variables (represented as memory blocks) was  much more difficult.} We recommend
 that the user do this in their C code, however, so that the C light translation
 will exactly match the original program.
 
-C has pointers and permits pointer dereference in subexpressions: \newline
-\lstinline[language=C]|d = p->head+q->head|.
+C has pointers and permits pointer dereference in subexpressions: 
+\begin{lstlisting}[language=C]
+d = p->head+q->head
+\end{lstlisting}
+
 Traditional Hoare logic is not well suited for pointer-manipulating programs,
-so we use a separation logic, with assertions such as 
+so we use a separation logic (Chapter \ref{ch:canonical}, with assertions such as 
 $(p\!\!\rightarrow \! \! \mathrm{head} \mapsto x) *(q \!\! \rightarrow \! \!
 \mathrm{head} \mapsto y)$. Separation logic does not permit pointer-dereference
 in subexpressions, so to reason about 
@@ -815,7 +815,7 @@ function: one function typechecks rvalues and the other typechecks
 lvalues.  For convenience, this paper only discuss rvalues.  Although
 CompCert's operational semantics are written as an inductive Coq type,
 they also have parts that are computational. For example, when we need
-to typecheck operation expressions, we use functions from CompCert
+to typecheck expressions that perform mathematical operations, we use functions from CompCert
 that \emph{classify} them. The following function leverages
 the classification function to typecheck binary operations: 
 \begin{lstlisting}
@@ -856,6 +856,165 @@ The code above is a good representation of how the typechecker is
 implemented. The first step is to match on the syntax. Next, if the expression
 is an operation, we use CompCert's classify function to decide which overloaded
 behavior to use. From there, we generate the appropriate assertion. 
+
+\section{Type Context}
+\label{sec:context}
+
+Expression evaluation requires an expression and an environment. 
+An expression will evaluate to different values (or \lstinline|Vundef|)
+depending on the environment.  To guarantee that certain expressions will
+evaluate, we will need to control what values can
+appear in environments. We use a type context to describe environments where
+our expressions will evaluate to defined values. 
+
+\begin{lstlisting}
+Definition tycontext: Type :=
+   (PTree.t (type * bool) * (PTree.t type) * type * (PTree.t global_spec)).
+\end{lstlisting}
+\lstinline|PTree.t($\tau$)| is CompCert's efficient computational 
+mapping data-structure
+(from identifiers to $\tau$) implemented
+and proved correct in Coq.  
+The elements of the type context are
+\begin{itemize}
+  \item a mapping from temp-var names to type and initialization
+  information,
+  \item a mapping from local variable names to types,
+  \item a return type for the current function, and
+  \item a mapping from global variable names to types 
+(and Hoare specifications for global functions).
+\end{itemize}
+
+The first, second, and fourth items match exactly with the three parts of
+an environment (\lstinline|environ|), which is made up of temporary variable
+mappings, local variable mappings, and global variable mappings.
+
+A temporary variable is a (local) variable whose address is not taken anywhere
+in the procedure. 
+Unlike local and global variables,
+temporaries do not alias---so we can statically determine when their
+values are modified. If the typechecker sees that a temporary
+variable is initialized, it knows that it will stay initialized. If the
+typechecker is unsure, it can emit an assertion guard for the user to prove
+initialization. Calculating initialization automatically 
+is a significant convenience for the user; proofs in the previous generation of
+our program logic were littered with definedness assertions in invariants.
+
+The initialization information is a Boolean that tells us if a
+temporary variable has certainly been initialized. The rules for this are
+simple, if a variable is assigned to, that variable will always be initialized
+in code executed after it. 
+The initialization status on leaving an \lstinline|if-then-else|
+is the GLB of the two branches. Loops have similar rules.
+
+
+\lstinline|typecheck_environ| checks an \lstinline|environ| with respect to
+a \lstinline|tycontext|. 
+It does not generate assertions as
+\lstinline|typecheck_expr| does, it simply returns a Boolean
+that if \lstinline{true} claims all of the following:
+\begin{itemize}
+  \item If the type context contains type information for a temporary variable
+  the temp environment contains a value for that variable. If
+  the variable is claimed to be initialized, that value
+  must belong to the type claimed in the type environment.
+  \item If the type context contains type information for a (addressable) local
+  variable, the local variable environment contains a local variable of matching type.
+  \item If the type context contains type information for a global variable, the
+  global environment contains a global variable of matching type.
+  \item If the type context contains type information for a global variable,
+  either
+     \begin{itemize}
+       \item the local variable environment does not have a value for that
+       variable or
+       \item the type context has type information for that variable as a local
+       variable.
+       \end{itemize}
+\end{itemize}
+
+\noindent The fourth point is required because local variables shadow global
+variables.
+%Consider the program
+
+%\begin{lstlisting}[language = c]
+%float *x; $$ $$ void* bad_function( ) {int x;    return (void *) x;}
+%\end{lstlisting}
+
+%If we allow the environment to only contain information about the global
+%(\lstinline[language=c]|float *|) variable \lstinline|x| and not the
+%local (\lstinline[language=c]|int|) variable \lstinline|x|, this
+%program will typecheck. It will typecheck because the type context is allowed
+%% to be smaller than the dynamic environment and we believe the
+%\lstinline[language=c]|return| expression is casting between pointers.
+%We need to disallow casts from int to pointer in our
+%typesystem, however, so we don't want this function to typecheck. The fourth
+%point above prevents this situation by requiring a variable that is shadowed in
+%a dynamic environment to also be shadowed in the type context.
+
+Initialization information is changed by statements. We only know a variable is
+initialized once we see that it is assigned to. Our typechecker only needs to operate at
+the level of expressions, so we can merge maintainence of the type
+context into the definition of our logic rules. We will now give some of these
+rules and explain how they work to keep the type context correct.
+
+We provide a function
+
+\begin{lstlisting}
+Definition func_tycontext (func: function) (V: varspecs) (G: funspecs): tycontext 
+\end{lstlisting}
+ 
+\noindent that automatically builds a correct type context 
+(for the beginning of the function body) given the function,
+local, and global specifications. The resulting context contains every variable
+used in the function matched with its correct type. We have proved that the
+environment created by the operational semantics when entering a function body
+typechecks with respect to the context generated by this function. 
+Once the environment is created, the Hoare rules use the function
+\lstinline|updatetycon| to maintain the type context across statements. 
+\begin{mathpar}
+\inferrule{
+\triple{\Delta}{P}{c}{Q} \\ \Delta' = \mathsf{updatetycon(\Delta,c)} \\
+\triple {\Delta'}{Q}{d}{R}} {
+\triple{\Delta}{P}{c;d}{R}}\mbox{seq}
+\end{mathpar}
+ 
+\lstinline|updatetycon| tells us that variables are known to be initialized
+after they are assigned to. It also says that variables are initialized if they
+were initialized before the execution of any statement, and that a
+variable is initialized if we knew it was initialized at the end of both
+branches of a preceding \lstinline|if| statement. When we say initialized, we
+mean \emph{unambiguously} initialized, meaning that it will be initialized
+during all possible executions of the program.
+
+The type context is deeply integrated with the type rules. We write our hoare
+judgment as
+$\triple{\Delta}{P}{c}{Q}$. We added the type context $\Delta$ because instead
+of quantifying over all environments as a normal Hoare triple does, we quantify
+only over environments that are well typed with respect to $\Delta$. This has a
+huge benefit to the users of the rules: they do not need to worry about the
+contents of $\Delta$, and they do not need to show that the environment
+typechecks or mention  $\Delta$ explicitly in preconditions.
+Our \emph{rule of consequence} illustrates
+what we always know about $\Delta$:
+\begin{mathpar}
+\inferrule{
+\mathsf{typecheck\_environ}(\rho,\Delta)\wedge P\vdash P'\qquad
+\triple{\Delta}{P'}{c}{R}}
+{\triple{\Delta}{P}{c}{R}}
+\end{mathpar}
+
+The conjunct $\mathsf{typecheck\_environ}(\rho,\Delta)$
+gives the user more information to work
+with in proving the goal. Without this, the user 
+would need to explicitly strengthen assertions and loop invariants
+to keep track of the initialization status of variables
+and the types of values contained therein.
+
+With \lstinline|func_tycontext| and
+\lstinline|updatetycon| the rules can guarantee that the type context is sound at all
+times. To keep the type context updated, the user must simply apply the normal
+Hoare rules, with our special Hoare rule for statement sequencing shown above.
+
  
 \section{Soundness}
 \label{sec:tc_sound}
@@ -1186,6 +1345,7 @@ a debugger or an engine for symbolic execution.
 
 
 \chapter{Canonical Forms for Assertions}
+\label{ch:canonical}
 
 VST uses assertions to reason about programs, but what does it require
 about the form of these assertions? This chapter discusses that, as
@@ -1403,6 +1563,17 @@ the variable being assigned into, no substitutions are needed, but
 there are numerous cases where this rule doesn't apply, so the
 substitution will still appear.
 
+Semicanonical form is very convenient for the user when
+\emph{writing} assertions. The list notation is great for combining
+assertions without having to remember the exact conjunction that must
+be used for each part. It also allows the $\LOCAL$ to remain small,
+because if there is a variable the user knows nothing about, there is
+no need to add it to the locals. It is less convenient when moving
+through a proof of a program. It can introduce existentials and
+substitutions that are slow to simplify, or sometimes don't simplify
+at all.
+
+
 \section{Canonical Form}
 \label{sec:cform}
 The reason that substitutions are difficult, and that they need to be
@@ -1514,43 +1685,12 @@ because \lstinline|`eval_expr $e$| might eventually simplify to
 \lstinline|`eval_id $x$|, which could appear in other places in the
 assertion.
 
-\lstinline|semax_PTree_set| also doesn't have an existential. This
-makes things simpler for the user and the proof automation. The
-existential for the old value isn't terribly inconvenient on it's own,
-it can be moved to the outside of the triple and introduced without
-much difficulty, especially because it's location in the precondition
-is consistent. The difficulty comes when choosing what to name the
-introduced variable. The solution in the tactics is to allow the user
-to specify names with the name tactic. Using \lstinline|name y _y|)
-tells the automation that values associated with variable
-\lstinline|_y| should automatically be named \lstinline|y| or
-\lstinline|y0|, \lstinline|y1|, \ldots if it isn't available.  This is
-a decent solution but it puts a hypothesis above the line, adding to
-what can already be a long list of hypotheses. It is also inconvenient
-in programs that make multiple assignments into the same variable. The
-following program is an example of what you might see without improved
-tactics or user cleanup:
-
-\begin{minted}{coq}
-{`eq (eval_id _x) x}
-x = x+1;
-{`eq (eval_id _x) (x0 + 1); `eq (x0 x)}
-x = x+2;
-{`eq (eval_id _x) (x1 + 1); `eq x1 (x0 + 1); `eq x0 x}
-...
-\end{minted}
-
-
-
-Semicanonical form is very convenient for the user when
-\emph{writing} assertions. The list notation is great for combining
-assertions without having to remember the exact conjunction that must
-be used for each part. It also allows the $\LOCAL$ to remain small,
-because if there is a variable the user knows nothing about, there is
-no need to add it to the locals. It is less convenient when moving
-through a proof of a program. It can introduce existentials and
-substitutions that are slow to simplify, or sometimes don't simplify
-at all.
+Floyd's forward assignment rule has an existential to bind the 'old'
+value of the variable.  Our \lstinline|semax_PTree_set| avoids this
+existential by making sure that the only direct reference to the old
+variable is replaced when the PTree is updated.  This simplifies the
+proofs, as it can be inconvenient and inefficient to deal with those
+existentials.
 
 Even the current form is not completely canonical. It could be
 restricted further which would improve performance in some ways, but
@@ -1563,7 +1703,21 @@ user. The other problem is that Coq variables can appear as arguments
 to the predicates, making it impossible to establish an ordering over
 them. Even so, any amount of canonicalization of the $\SEP$ could help
 with entailment solving efficiency, so it is worth a look in the
-future.
+future. The assertions might also be made more canonical by examining
+the types of pure assertions that often occur and giving them a
+special location. As an example, propositions about the range of
+integers commonly occur, especially doing proofs about programs that
+operate on arrays. Creating a special form for specific parts of pure
+operations might benefit the automation by making it simple to look
+for assertions about the range of a particular variable. It might also
+help future decision procedures by gathering information that is
+relevant to a particular type of goal. Again, this is harder to
+make canonical because there is no concrete datastructure equivalent
+to the identifier names in the $\LOCAL$. Instead there are only Coq
+variables, which might be mixed with function applications making any
+form of sorting them difficult. 
+
+
 
 \chapter{Applying A Reflective Framework}
 
