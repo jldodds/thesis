@@ -860,12 +860,12 @@ behavior to use. From there, we generate the appropriate assertion.
 \section{Type Context}
 \label{sec:context}
 
-Expression evaluation requires an expression and an environment. 
-An expression will evaluate to different values (or \lstinline|Vundef|)
-depending on the environment.  To guarantee that certain expressions will
-evaluate, we will need to control what values can
-appear in environments. We use a type context to describe environments where
-our expressions will evaluate to defined values. 
+Expression evaluation requires an expression and an environment.  The
+result of expression evaluation depends on the environment. To
+guarantee that certain expressions will evaluate, we control what
+values can appear in environments. A type context to describes
+environments where we can prove that expressions will evaluate to
+defined values.
 
 \begin{lstlisting}
 Definition tycontext: Type :=
@@ -881,41 +881,45 @@ The elements of the type context are
   information,
   \item a mapping from local variable names to types,
   \item a return type for the current function, and
-  \item a mapping from global variable names to types 
-(and Hoare specifications for global functions).
+  \item a mapping from global variable names to types
+  \item a mapping from global variable names to function specifications
 \end{itemize}
 
 The first, second, and fourth items match exactly with the three parts of
 an environment (\lstinline|environ|), which is made up of temporary variable
 mappings, local variable mappings, and global variable mappings.
 
-A temporary variable is a (local) variable whose address is not taken anywhere
-in the procedure. 
-Unlike local and global variables,
-temporaries do not alias---so we can statically determine when their
-values are modified. If the typechecker sees that a temporary
-variable is initialized, it knows that it will stay initialized. If the
-typechecker is unsure, it can emit an assertion guard for the user to prove
-initialization. Calculating initialization automatically 
-is a significant convenience for the user; proofs in the previous generation of
-our program logic were littered with definedness assertions in invariants.
+The fifth item is specific to proofs and is separated from the fourth
+because function specifications can't be computed on. The reasoning
+for this will be discussed in Chapter \ref{ch:reflection}. 
+
+A temporary variable is a (local) variable whose address is not taken
+anywhere in the procedure.  Unlike local and global variables,
+these variables can not alias---so we can statically determine when their
+values are modified. If the typechecker sees that a temporary variable
+is initialized, it knows that it will stay initialized. If the
+typechecker is unsure, it can emit an assertion guard for the user to
+prove initialization. Calculating initialization automatically is a
+significant convenience for the user; proofs in the previous
+generation of our program logic were littered with definedness
+assertions in invariants.
 
 The initialization information is a Boolean that tells us if a
-temporary variable has certainly been initialized. The rules for this are
-simple, if a variable is assigned to, that variable will always be initialized
-in code executed after it. 
-The initialization status on leaving an \lstinline|if-then-else|
-is the GLB of the two branches. Loops have similar rules.
+temporary variable has certainly been initialized. The rules for this
+are simple, if a variable is assigned to, that variable will always be
+initialized in code executed after it.  The initialization status on
+leaving an \lstinline|if-then-else| is the GLB of the two
+branches. Loops have similar rules.
 
 
 \lstinline|typecheck_environ| checks an \lstinline|environ| with respect to
 a \lstinline|tycontext|. 
 It does not generate assertions as
 \lstinline|typecheck_expr| does, it simply returns a Boolean
-that if \lstinline{true} claims all of the following:
+that if \lstinline{true} guarantees all of the following:
 \begin{itemize}
   \item If the type context contains type information for a temporary variable
-  the temp environment contains a value for that variable. If
+  the environment contains a value for that variable. If
   the variable is claimed to be initialized, that value
   must belong to the type claimed in the type environment.
   \item If the type context contains type information for a (addressable) local
@@ -952,9 +956,9 @@ variables.
 %a dynamic environment to also be shadowed in the type context.
 
 Initialization information is changed by statements. We only know a variable is
-initialized once we see that it is assigned to. Our typechecker only needs to operate at
-the level of expressions, so we can merge maintainence of the type
-context into the definition of our logic rules. We will now give some of these
+initialized once we see that it is assigned to. The typechecker operates at
+the level of expressions, so the logic rules which work at the
+statement level must maintain the type context. We will now give some of these
 rules and explain how they work to keep the type context correct.
 
 We provide a function
@@ -973,9 +977,9 @@ Once the environment is created, the Hoare rules use the function
 \lstinline|updatetycon| to maintain the type context across statements. 
 \begin{mathpar}
 \inferrule{
-\triple{\Delta}{P}{c}{Q} \\ \Delta' = \mathsf{updatetycon(\Delta,c)} \\
-\triple {\Delta'}{Q}{d}{R}} {
-\triple{\Delta}{P}{c;d}{R}}\mbox{seq}
+\tripleD{\Delta}{P}{c}{Q} \\ \Delta' = \mathsf{updatetycon(\Delta,c)} \\
+\tripleD{\Delta'}{Q}{d}{R}} {
+\tripleD{\Delta}{P}{c;d}{R}}\mbox{seq}
 \end{mathpar}
  
 \lstinline|updatetycon| tells us that variables are known to be initialized
@@ -986,12 +990,12 @@ branches of a preceding \lstinline|if| statement. When we say initialized, we
 mean \emph{unambiguously} initialized, meaning that it will be initialized
 during all possible executions of the program.
 
-The type context is deeply integrated with the type rules. We write our hoare
+The type context is deeply integrated with the logic rules. We write our hoare
 judgment as
-$\triple{\Delta}{P}{c}{Q}$. We added the type context $\Delta$ because instead
+$\triple{\Delta}{P}{c}{Q}$. It contains the type context $\Delta$ because instead
 of quantifying over all environments as a normal Hoare triple does, we quantify
 only over environments that are well typed with respect to $\Delta$. This has a
-huge benefit to the users of the rules: they do not need to worry about the
+benefit to the users of the rules: they do not need to worry about the
 contents of $\Delta$, and they do not need to show that the environment
 typechecks or mention  $\Delta$ explicitly in preconditions.
 Our \emph{rule of consequence} illustrates
@@ -1010,15 +1014,16 @@ would need to explicitly strengthen assertions and loop invariants
 to keep track of the initialization status of variables
 and the types of values contained therein.
 
-With \lstinline|func_tycontext| and
-\lstinline|updatetycon| the rules can guarantee that the type context is sound at all
-times. To keep the type context updated, the user must simply apply the normal
-Hoare rules, with our special Hoare rule for statement sequencing shown above.
+With \lstinline|func_tycontext| and \lstinline|updatetycon| the rules
+can guarantee that the type context is sound throughout every
+proof. To keep the type context updated, the user must simply apply
+the normal Hoare rules, with our special Hoare rule for statement
+sequencing shown above.
 
  
 \section{Soundness}
 \label{sec:tc_sound}
-The soundness statement for our typechecker is:
+The soundness statement for the typechecker is:
 
 If the dynamic environment $\rho$ is well typed with respect to the
 static type context $\Delta$ (Section \ref{sec:context}), and the expression
@@ -1059,29 +1064,29 @@ the file containing the binary operation proofs.
 
 \section{A Tactical Proof}
 \label{sec:example}
-Now we will show an exmple of applying the C light program logic to verify a simple C program
-interactively in Coq. We will verify the C program: 
+This section gives an example of applying the C light program logic to
+verify a simple C program interactively in Coq, verifying the C
+program:
 
 \begin{lstlisting}[language=c]
 int assigns (int a) { int b, c; c = a*a; b = c/3; return b; }
 \end{lstlisting}
 
-We begin by passing our program through the CompCert \lstinline|clightgen| tool
-to create a .v file that we can read into Coq. The next step is to specify our program. The
-specification for this program is:
+The first step is to pass the program through the CompCert
+\lstinline|clightgen| tool to create a Coq .v file. The next step is
+to specify the program:
 
 \[\tripleD{\Delta}{\mathsf{Vint}(v)=\mathrm{eval}\,\mathsf{a}\,\rho}
 {\mathsf{assigns}\ldots}{\mathsf{retval}\,\rho = \mathsf{Vint}((v * v) /
 3)}\]
 
-Barring any unexpected evaluation errors, we expect this specification to hold.
+Barring any unexpected evaluation errors, this specification should hold.
 The specification states that in an arbitrary initial state, the program will either
-infinite loop or terminate in a state in which \lstinline|retval = (a*a)/3|. For this
-example we will focus on proving the specification of the function
-body. We will take the proof step by step later, the following shows
-how automated the entire proof is:
-
-\pagebreak
+infinite loop or terminate in a state in which \lstinline|retval = (a*a)/3|. This
+example focuses on proving the specification of the function
+body. The following shows
+how automated the entire proof is, it will be broken down step by step
+next:
 
 \begin{lstlisting}
 Lemma body_test : semax_body Vprog Gtot f_assigns assign_spec.
@@ -1097,7 +1102,7 @@ In fact, the entire proof could easily be completed by one tactic:
 repeat (forward; try solve[entailer!])
 \end{lstlisting}
 
-But I show the steps here so that they can be understood.
+For understanding the steps are listed here.
 
 The function \lstinline|semax_body| creates a triple for a function body given a
 list of global variable specifications (\lstinline|Vprog|, the empty list), a
@@ -1106,21 +1111,25 @@ main), the pointer to the function (\lstinline|f_assigns|, pointer from
 program .v file), and a specification (\lstinline|assign_spec|, the Coq version
 of the triple shown above). The tactic \lstinline|start_function| unfolds
 \lstinline|semax_body| and ensures that the precondition is in a usable form.
-The relation \lstinline|semax| defines the triple we have seen throughout the
-paper.
+The relation \lstinline|semax| defines the Hoare triple.
 
-The \lstinline|name| tactic, and
-the \lstinline|name| hypotheses it generates, relate variable names to value
-names. For example \lstinline|_a| is the name of the variable \lstinline|a| in
-the program. The tactic \lstinline|name a _a| tells the tactics that values
-associated with evaluating \lstinline|_a| should be called \lstinline|a|.
+The \lstinline|name| tactic, and the \lstinline|name| hypotheses it
+generates, relate variable names to value names. For example
+\lstinline|_a| is the name of the variable \lstinline|a| in the
+program. The tactic \lstinline|name a _a| tells the tactics that
+values associated with evaluating \lstinline|_a| should be called
+\lstinline|a|. This is strictly a convenience so that automatically
+created value names won't be confusing during the proof. Without a
+hint, Coq would default to calling them $x_0, x_1$ and so on. 
 
-We will examine the proof state at a few points to highlight the
-\lstinline|forward| and \lstinline|entailer| tactics and show goals generated by
-the typechecker. We have replaced C light AST with C-like syntax in the lines
-marked \lstinline|(* pseudocode *)|. Assertions are in a canonical form,
-separated into \lstinline|PROP| (propositions that don't require state), \lstinline|LOCAL| (assertions lifted over the local environment), and
-\lstinline|SEP| (separation assertions over memory). Empty assertions for any of
+
+In the following examples, C light AST is replaced with C-like syntax
+in the lines marked \lstinline|(* pseudocode *)|. Assertions are in a
+canonical form, separated into \lstinline|PROP| (propositions that
+don't require state), \lstinline|LOCAL| (assertions lifted over the
+local environment), and \lstinline|SEP| (separation assertions over
+memory) a discussion of this form, and a method for improving it can
+be found in Chapter \ref{ch:canonical}. Empty assertions for any of
 these mean \lstinline|True|.
 
 \begin{lstlisting}
@@ -1135,16 +1144,17 @@ these mean \lstinline|True|.
       (function_body_ret_assert tint (_a * _a / 3)  = retval)
 \end{lstlisting}
 
-Above is the state after we apply \lstinline|forward| for the first time.  This tactic
-performs forward symbolic execution using Coq tactic programs, as
-various authors have demonstrated
+Above is the state after applying \lstinline|forward| for the first
+time.  This tactic performs forward symbolic execution using Coq
+tactic programs, as various authors have demonstrated
 \cite{appel06,chlipala11:pldi,bengtson12,mccreight09}. In effect,
-\lstinline|forward| applies the appropriate Hoare rule for the next command,
-using the sequence rule if necessary. The backtick (\lstinline|`|) is the
-``lifting'' coercion of Bengtson \emph{et al.} \cite{bengtson12}. 
-\lstinline|function_body_ret_assert| tells us that our
-postcondition talks about the state when the program returns successfully. A
-program that does not return successfully will not satisfy this triple.
+\lstinline|forward| applies the appropriate Hoare rule for the next
+command, using the sequence rule if necessary. The backtick
+(\lstinline|`|) is the ``lifting'' coercion of Bengtson \emph{et al.}
+\cite{bengtson12}.  \lstinline|function_body_ret_assert| tells us that
+our postcondition talks about the state when the program returns
+successfully. A program that does not return successfully will not
+satisfy this triple.
 
 The \lstinline|forward| tactic makes a decision when it sees an assignment. In
 general, it uses the Floyd assignment rule that existentially quantifies the
@@ -1160,7 +1170,7 @@ old value.
 
 In the proof so far (after symbolic execution of the
 command \lstinline{c=a*a;})
-we have not yet seen a typechecking side condition---not 
+there has not been a typechecking side condition---not 
 because they were automatically
 solved, but because they were never generated in the first place. They were checked
 computationally, but no assertion about them is given. The condition that $a$ be
@@ -1182,7 +1192,7 @@ the following separation-logic side condition:
    PROP() $$ LOCAL(tc_environ $\Delta$; `eq (eval_id _c) (eval_expr (_a * _a)); (`eq (eval_id _a) v)) 
    SEP(`TT) |-- local (tc_expr $\Delta$ (_c /  3)) && local (tc_temp_id _b tint $\Delta$)
 \end{lstlisting}
-\noindent This is an entailment, asking us to prove the right hand side given
+\noindent This is an entailment, asking to prove the right hand side given
 the left hand side. We need to show that the expression on the right hand side
 of the assignment typechecks, and that the id on the left side typechecks. We
 would expect to see that: $c$ is initialized, $3\neq 0$ and
@@ -1263,19 +1273,34 @@ specification. In this case it is easy, just a few unfolds and rewrites.
 
 
 \section{Related Work}
-Frama-C is a framework for verifying C programs \cite{cuoq2012frama}. It presents a unified assertion
-language to enable static analysis cooperation. The assertion language allows users to specify only first-order properties 
-about programs, and does not include separation logic. The Value analysis \cite{canet2009value} uses abstract interpretation to determine possible values, giving errors for programs
-that might have runtime errors. The WP plugin uses weakest precondition calculus to verify triples. 
-WP is only correct when first running Value which may result in some verification
-conditions that can then be verified by WP along with the function specifications. Frama-C does not seem to have any
-soundness proof.
+Frama-C is a framework for verifying C programs
+\cite{cuoq2012frama}. It presents a unified assertion language to
+enable static analysis cooperation. The assertion language allows
+users to specify only first-order properties about programs, and does
+not include separation logic. The Value analysis \cite{canet2009value}
+uses abstract interpretation to determine possible values, giving
+errors for programs that might have runtime errors. The WP plugin uses
+weakest precondition calculus to verify triples.  WP is only correct
+when first running Value which may result in some verification
+conditions that can then be verified by WP along with the function
+specifications. Frama-C does not seem to have any soundness proof.
+Frama-C is an incredibly useful tool for finding bugs and specifying
+programs without putting forth too much effort. The level of assurance
+and the strength of logic that it provides, however, are of a
+different level than VST. It is likely that in proving a program
+correct it would be an efficient to first use Frama-C to get the
+program as close to correct as possible and then use VST to give
+complete assurance of correctness.
 
 VCC is a verifier for concurrent C programs. It works by translating C programs to 
 Boogie, which is a combination of an intermediate language, a VC generator, and an
 interface to pass VCs off to SMT solvers such as Z3.
 VCC adds verification conditions that ensure that expressions
-evaluate.
+evaluate. Like the Value analysis, there is no link between the
+conditions and an operational semantics, they are what the developers
+thought of when writing the program. There is no guarantee that the
+conditions generated are sufficient to keep the program from crashing
+when run.
 
 Greenaway \emph{et al.} \cite{greenaway12} show a verified conversion from C
 into a high-level specification that is easy for users to read. They do this
@@ -1295,7 +1320,10 @@ Another difference is that they produce all the additional guards and then
 solve most of them automatically,  while we avoid creating
 most such assertions. Expression evaluation
 is not the main focus of Greenaway's work, however, and the ideas presented for
-simplifying C programs could be useful in conjunction with our work. 
+simplifying C programs could be useful in conjunction with our work,
+possibly to automatically generate parts of specifications that can be
+used as a starting point for VST users to create program
+specifications.
 
 Bengtson \emph{et al.} \cite{bengtson12} provide a framework for verifying
 correctness of Java-like programs with a higher-order separation logic similar
@@ -1341,7 +1369,7 @@ specification of the CompCert semantics. We, on the other hand, are accepting
 the CompCert semantics as the specification of the language we are operating
 on. Ellison and Rosu have the goal of showing program correctness, which is a 
 similar goal to ours. They show program correctness by using their semantics as
-a debugger or an engine for symbolic execution.
+a debugger or an engine for symbolic execution. 
 
 
 \chapter{Canonical Forms for Assertions}
@@ -1720,7 +1748,7 @@ form of sorting them difficult.
 
 
 \chapter{Applying A Reflective Framework}
-
+\label{ch:reflection}
 \section{Modular Reflection}
 
 Before presenting the reflective framework we presented both the
@@ -1895,9 +1923,8 @@ a reasonably sized result. The reasonably sized result must assume
 that all definitions that appear in the original expression will be
 unfolded completely, meaning that there shouldn't be opaque terms
 anywhere in a term VM compute is run on.
-
   
-The test we present here is the symbolic execution of a program with
+The test presented here is the symbolic execution of a program with
 $n$ statements that assigns $0$ into $n$ different variables. This
 test is actually a best case for the Ltac version because it is able
 to notice that the precondition is always closed w.r.t the variable we
