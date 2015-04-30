@@ -224,7 +224,7 @@ previous tactics, meaning that in places where it is not usable,
 existing tactics can still make progress on the proof.
 
 \chapter{Computation in Coq}
-
+\label{ch:computation}
 The Coq proof assistant has a built in functional programming language
 called Gallina with the ability to match inductive data-structures. The type
 boolean, for example can be defined:
@@ -432,6 +432,7 @@ interactivity of a shallow embedding with the efficiency of a deep
 embedding by moving between the two when it is needed.
 
 \section{Computational reflection}
+\label{sec:reflection}
 
 Proof by reflection is the technique of using proved-sound computation
 on a deep embedding to make progress in a proof. To use reflection on
@@ -1749,6 +1750,7 @@ form of sorting them difficult.
 
 \chapter{Applying A Reflective Framework}
 \label{ch:reflection}
+
 \section{Modular Reflection}
 
 Before presenting the reflective framework we presented both the
@@ -1890,6 +1892,161 @@ barriers to easily applying a reflective framework in a setting like
 VST. It is an important open question weather this is avoidable. Can
 a reflective framework reuse computations that might operate
 over Coq variables without requiring reified functions? 
+
+\section{Implementation of Mirror-Core tactics}
+The first step in using Mirror-Core is to create a tactic for
+reification. Mirror-Core includes a reification plugin written in
+OCaml. The plugin is modular, meaning it can be updated with rules for
+translating various languages. Although the tactic can be updated with
+rules for translation, there must be an existing reified syntax for
+the logic. This syntax comes in two parts.
+
+\begin{enumerate}
+\item An inductive datastructure with definitions for each type and
+\item an inductive datastructure with syntax for \emph{interpreted}
+  functions.
+\end{enumerate}
+
+The functions are interpreted because they have meaning without
+examining the denotations. Crucially, Mirror-Core can extend its
+symbol table with \emph{uninterpreted} functions if it runs into a
+function that it doesn't have a rule for. This allows it to work in
+the general case, where all symbols aren't known at the time the
+tactic is created. 
+
+The type definition is straightforward, the only particular
+requirement (guaranteed by a typeclass instance) is that an arrow type
+exists:
+
+\begin{lstlisting}
+Inductive typ :=
+| tyArr : typ -> typ -> typ
+| tytycontext
+| tylist : typ -> typ
+| ...
+\end{lstlisting}
+
+There is also a denotation function that maps \lstinline|typ| to
+\lstinline|Type|:
+
+\begin{lstlisting} 
+Fixpoint typD (t : typ) (*(m : PositiveMap.t Type)*): Type :=
+    match t with
+        | tyArr a b => typD a  -> typD b
+        | tytycontext => tycontext
+        | tylist t => list (typD t )
+        | ...
+    end.
+\end{lstlisting}
+
+This encoding allows for polymorphic types, as demonstrated by the
+\lstinline|tylist| and \lstinline|tyArr| rules, which recursively take
+the denotation of their type arguments.
+
+Once the types are defined, we define and inductive syntax for
+interpreted functions, which we divide into subgroups to make
+organization and matching easier:
+
+\begin{lstlisting}
+Inductive const :=
+| fN : nat -> const
+| fZ : Z -> const
+| fint : int -> const
+| fint64 : int64 -> const
+| ...
+
+Inductive eval :=
+| feval_cast : type -> type -> eval
+| fderef_noload : type -> eval
+| feval_field : type -> ident -> eval
+| feval_binop : binary_operation -> type -> type -> eval
+| feval_unop : unary_operation -> type -> eval
+| feval_id : ident -> eval.
+
+Inductive other :=
+| feq : typ -> other
+| fnone : typ -> other
+| fsome : typ -> other
+| ...
+
+...
+
+Inductive func' :=
+| Const : const -> func'
+| Zop : z_op -> func'
+| Intop : int_op -> func'
+| Value : values -> func'
+| Eval_f : eval -> func'
+| Other : other -> func'
+| Sep : sep -> func'
+| Data : data -> func'
+| Smx : smx -> func'.
+
+\end{lstlisting}
+
+There are two types of functions to note here. The first is functions
+that take \lstinline|typ| as an argument. These are polymorphic
+functions that typically operate over the polymorphic types we have
+already defined. The constructors \lstinline|feq|, \lstinline|fnone|
+and \lstinline|fsome| above are examples of this. The other
+interesting function definitions are constructors with arguments of
+other types. These functions are said to take constants as
+arguments. This is very convenient, because as discussed in chapter
+\ref{ch:computation}, most shallowly embedded logics, including ours,
+have deeply embedded sub languages that should not need to be reified
+in order to be computed on. These include things like the types of C
+variables and all parts of C expressions, as well as \lstinline|Z|,
+\lstinline|nat|, and any other Coq datatype that might appear and be
+made up completely of constructors.
+
+Next we need a function that defines the reified type of the functions
+represented by each constructor:
+
+\begin{lstlisting}
+Definition typeof_const (c : const) : typ :=
+ match c with
+| fN _ => tynat
+| fZ _ => tyZ
+| fint _ => tyint
+| fint64 _ => tyint64
+| ...
+
+Definition typeof_eval (e : eval) :=
+ match e with
+| feval_cast _ _ => (tyArr tyval tyval)
+| fderef_noload _ => (tyArr tyval tyval)
+| feval_field _ _ => (tyArr tyval tyval)
+| feval_binop _ _ _=> (tyArr tyval (tyArr tyval tyval))
+| feval_unop _ _ => (tyArr tyval tyval)
+| feval_id _  => (tyArr tyenviron tyval)
+end.
+
+Definition typeof_other (o : other) :=
+match o with
+| feq t => tyArr t (tyArr t typrop) 
+| fnone t => tyoption t
+| fsome t => tyArr t (tyoption t)
+| ...
+end.
+
+Definition typeof_func' (f: func') : typ :=
+match f with
+| Const c => typeof_const c
+| Zop z => typeof_z_op z
+| Intop i => typeof_int_op i
+| Value v => typeof_value v
+| Eval_f e => typeof_eval e
+| Other o => typeof_other o
+| Sep s => typeof_sep s
+| Data l => typeof_data l
+| Smx t => typeof_smx t
+end.
+\end{lstlisting}
+
+And then define the denotation function, which is dependently typed
+based on the application of the typeof function.
+
+
 
 \chapter{Evaluation}
 
