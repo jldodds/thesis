@@ -2044,9 +2044,114 @@ end.
 \end{lstlisting}
 
 And then define the denotation function, which is dependently typed
-based on the application of the typeof function.
+based on the application of the typeof function:
 
+\begin{lstlisting}
+Definition constD (c : const)
+: typD (typeof_const c) :=
+match c with
+| fN c | fZ c | fPos c | fident c | fCtype c | fCexpr c | fComparison c | fbool c | fint c 
+| fint64 c | ffloat c | ffloat32 c | fenv c | fllrr c
+                                          => c
+end.
 
+Definition otherD  (o : other) : typD  (typeof_other o) :=
+match o with
+| feq t => @eq (typD t) 
+| fsome t => @Some (typD t)
+| fnone t => @None (typD t)
+| ...
+end.
+
+Definition evalD  (e : eval) : typD  (typeof_eval e) :=
+match e with
+| feval_id id => eval_id id
+| feval_cast t1 t2 => eval_cast t1 t2
+| fderef_noload t => deref_noload t
+| feval_field t id => eval_field t id
+| feval_binop op t1 t2 => eval_binop op t1 t2
+| feval_unop op t => eval_unop op t
+end.
+
+Definition funcD  (f : func') : typD  (typeof_func f) :=
+match f with
+| Const c => constD  c
+| Zop z => z_opD  z
+| Intop i => int_opD  i
+| Value v => valueD  v
+| Eval_f e => evalD  e
+| Other o => otherD  o
+| Sep s => sepD  s
+| Data l => dataD l
+| Smx t => smxD t
+end.
+\end{lstlisting}
+
+There is one part that is tricky though, and that is the dependently
+typed definition of our separation logic predicates for dealing with
+data structures:
+
+\begin{lstlisting}
+reptype (t: type) : Type
+data_at : Share.t -> forall t : type, reptype t -> val -> mpred
+
+...
+| fdata_at : type -> sep (*reified data_at)*
+...
+\end{lstlisting}
+
+It is dependently typed because it is a single predicate that works on
+expressions that could contain any C type. Because \lstinline|data_at|
+specifies the behavior of a program, \lstinline|data_at| relates C
+values to Coq values. This requires the use of the \lstinline|reptype|
+function, which is simply a mapping from C types to Coq
+types. Unfortunately, Mirror Core doesn't support dependently typed
+functions. We are able to avoid this restriction, however, because we
+know that \lstinline|reptype| will always be called on a type that
+comes from a \emph{real} program. That means that the function call
+will always terminate and result in a constant. The \lstinline|data_at|
+function with \lstinline|reptype| evaluated on an argument is no
+longer a dependently typed function, so it can be reified. The tricky
+part is that we can't use \lstinline|reptype| as the type of the
+reified function because the reified function needs to have reified
+types. So we define a function \lstinline|reptyp| (no e) with the same
+implementation as \lstinline|reptype| except for every Coq type
+returned in \lstinline|reptype| is exchanged for a reified
+type. Here are examples from both functions:
+
+\begin{lstlisting}
+Fixpoint reptyp (ty: type) : typ :=
+  match ty with
+  | Tvoid => tyunit
+  | Tarray t1 sz a => tylist (reptyp t1)
+  ... end.
+
+Fixpoint reptype (ty: type) : Type :=
+  match ty with
+  | Tvoid => unit
+  | Tarray t1 sz a => list (reptype t1)
+  ... end.
+\end{lstlisting}
+
+Then we say the reified type of the \lstinline|data_at| function is:
+
+\begin{lstlisting}
+Definition typeof_sep (s : sep) : typ :=
+match s with
+  | fdata_at t => tyArr tyshare (tyArr (reptyp t) (tyArr tyval tympred))
+... end
+\end{lstlisting}
+
+But then to define the denotation function we need a proof:
+
+\begin{lstlisting}
+Definition typD_reptyp_reptype: forall t, typD  (reptyp t) = reptype t.
+\end{lstlisting}
+
+In order to convince the denotation function that the denotation
+\lstinline|fdata_at| applied to the reified type obtained by
+\lstinline|reptyp| will match the type obtained by \lstinline|reptype|
+in the implementation of \lstinline|data_at|
 
 \chapter{Evaluation}
 
