@@ -1894,6 +1894,25 @@ a reflective framework reuse computations that might operate
 over Coq variables without requiring reified functions? 
 
 \section{Implementation of Mirror-Core tactics}
+
+There are a number of operations that need to be implemented to create
+a complete reflective tactic: 
+\begin{enumerate}
+\item a reification tactic to transform proof states into a
+  syntax that can be computed on,
+\item functions that operate on the reified syntax, transforming
+  reified syntax into other reified syntax,
+\item soundness proofs that the functions make valid transformations
+  on reified proof states wrt Coq,
+\item denotation functions to create proof goals from reified syntax,
+  and
+\item a tactic to combine these steps into a single, fast, proof state
+  transformation
+\end{enumerate}
+
+
+\subsection{Reification and Denotation}
+
 The first step in using Mirror-Core is to create a tactic for
 reification. Mirror-Core includes a reification plugin written in
 OCaml. The plugin is modular, meaning it can be updated with rules for
@@ -2087,6 +2106,69 @@ match f with
 end.
 \end{lstlisting}
 
+This is not the extent of functions that we want to be injected into
+Mirror Core, however. Our function definition is actually:
+
+\begin{lstlisting}
+Definition func := (SymEnv.func + @ilfunc typ + @bilfunc typ + func')%type.
+\end{lstlisting}
+
+The first item is a symbolic environment where we can put
+uninterpreted functions. The second and third are modular logics
+% TODO: citation?
+that might eventually allow us to take advantage of generic decision
+procedures. Finally \lstinline|func'| is our syntax definition.
+
+With this syntax created, the next step is to tell Mirror Core's
+tactic how to use it. This is done by creating tables of rules which
+map parts of proof goals to reified syntax. Mirror Core's reification
+tactic is a Coq plugin which provides syntax for defining these rules:
+
+\begin{lstlisting}
+Reify Pattern patterns_vst_typ += (!!bool) => tybool.
+
+Reify Pattern patterns_vst_hastype += 
+      (RHasType bool (?0)) => (fun (a : id bool) 
+                                       => (@Inj typ func (inr (Const (fbool a))))).
+
+Reify Pattern patterns_vst += 
+      (!!@eq @ ?0) => (fun (a : function reify_vst_typ) 
+                       => @Inj typ func (inr (Other (feq a)))).
+\end{lstlisting}
+
+This selection of rules shows most of the features that can be
+used. The identifiers \lstinline|patterns_vst_typ| \lstinline|patterns_vst_hastype| and
+\lstinline|patterns_vst| tell the plugin which table the rule belongs
+to. Elsewhere in the file, the tables are defined and given an order
+that they will be tried by the reifier. The first pattern defines the
+reification of the bool type. It simply matches the type
+\lstinline|!!bool| where \lstinline|!!| is notation that tells the
+plugin this will be an exact match by equality. When the type is
+matched, it tells the reification tactic that it should emit
+\lstinline|tybool|.
+
+The second rule doesn't make an exact match, instead matching the type
+of the expression to bool. The \lstinline|RHasType| pattern takes an
+argument, denoted by \lstinline|?0|. The 0 means that the variable is
+given to the first argument of the function on the right hand side of
+the rule. The type \lstinline|id bool| of the argument means that it
+will be passed a Coq bool as opposed to a reified bool. The
+\lstinline|Inj| constructor allows an injection of a reified function
+into Mirror Core's lambda calculus. 
+
+The next rule demonstrates reifying a polymorphic equation. Of note is
+the type of the argument \lstinline|a|. It is \lstinline|function
+reify_vst_typ| which means that it will take a Coq type and reify it
+into a Mirror Core type.
+
+The features shown here are sufficient to define reification for all
+of the symbols that might be found in VST. 
+
+
+
+
+\subsection{Modular Reflection}
+
 There is one part that is tricky though, and that is the dependently
 typed definition of our separation logic predicates for dealing with
 data structures:
@@ -2151,7 +2233,17 @@ Definition typD_reptyp_reptype: forall t, typD  (reptyp t) = reptype t.
 In order to convince the denotation function that the denotation
 \lstinline|fdata_at| applied to the reified type obtained by
 \lstinline|reptyp| will match the type obtained by \lstinline|reptype|
-in the implementation of \lstinline|data_at|
+in the implementation of \lstinline|data_at|. This is a significant
+amount of work to be put into reifying a dependently typed
+function. It doesn't work in the general case either; This technique
+only works if you are sure that the dependent type will compute away
+when the function is applied to some number of its first
+arguments. For the foreseeable future of VST, this dependent typing
+capability is sufficient, but it might make Mirror Core impossible to
+use in some other projects with more difficult dependent types.
+
+
+
 
 \chapter{Evaluation}
 
