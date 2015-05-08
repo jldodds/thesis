@@ -1751,149 +1751,14 @@ form of sorting them difficult.
 \chapter{Applying A Reflective Framework}
 \label{ch:reflection}
 
-\section{Modular Reflection}
-
-Before presenting the reflective framework we presented both the
-typechecker, and a canonical form for assertions which allows us to do
-substitutions computationally.  Both our techniques and the reflective
-framework are reflective.  They use proved-sound Coq functions to make
-progress in a proof. This section discusses how these techniques
-interact. There is no interesting interaction between the substitution
-and the typechecker because they occur in different places. When we
-try to apply a reflective framework to a logic that uses these
-reflective techniques, though, we run into some interesting
-challenges. This section discusses those challenges and questions if
-they are avoidable in a differently designed reflective framework.
-
-A function that is used in a logic can fall into one of three
-categories with respect to their interaction with the reflective
-framework:
-
-\begin{itemize}
-\item A function that operates on constants and returns a type that
-  can be represented as a constant requires no modification to be used
-  in MirrorCore.
-\item A function that operates on constants and returns Prop or Type
-  will look exactly the same but return reified results.
-\item A function that might operate on Coq variables must take reified
-  expressions as arguments and return a reified result.
-\end{itemize}
-
-The first category is convenient, but unfortunately fairly few
-functions that we use fall into this category. The reason that they
-can return any type but Type or Prop is because in general if a
-function returns a result we will want to reason about it, and if it
-can't be represented by a constant we will be unable to do anything
-with it in the Mirror-Core framework.
-
-The second category includes the typechecker which returns
-\lstinline|environ -> Prop| that might eventually be discharged by
-either the person writing the proof or some automation.  In order to
-allow reflective automation to have a chance to solve these remaining
-conditions, we must write a new function who instead of returning
-\lstinline|environ -> Prop| returns an \lstinline|expr| whose
-denotation is (provably) the same as the result of the original
-typechecker called on the same arguments.
-
-\begin{minted}{coq}
-Definition tc_expr_reif (e : c_expr) (Delta : tycontext) : expr.
-
-Lemma tc_expr_reif_sound_complete : forall tus tvs e Delta,
-exprD' tus tvs (tyarr tyenviron typrop) (tc_expr_reif e Delta) =
-exprD' tus tbs (tyarr tyenviron typrop) (ftc_expr e Delta).
-\end{minted}
-
-Notice that the right hand side of the equality in the lemma doesn't
-refer to the original typechecking function but the trivially reified
-version. That is, \lstinline|ftc_expr| is a constructor whose
-denotation is equal to \lstinline|tc_expr|, while
-\lstinline|tc_expr_reif| is a function that when applied will have a
-denotation equal to \lstinline|tc_expr| applied to the same
-arguments. The function \lstinline|tc_expr_reif| can compute while no
-progress can be made on \lstinline|ftc_expr|.  We put the denotation
-function on both sides of the function because this allows us to write
-an RTac that finds reified terms that look like \lstinline|ftc_expr e Delta|
-(uncomputable) and replace them with a term 
-\lstinline|tc_expr e Delta|. This is important because we might want to run some other
-RTac on the result of the typechecking. Possibly an entailment solver
-to discharge any remaining conditions.
-
-We prove that \lstinline|tc_expr_reif| is sound, or that when it has a
-denotation, that denotation matches the \lstinline|tc_expr|
-function. We also prove it complete by showing that whenever
-\lstinline|ftc_expr| has a denotation, \lstinline|tc_expr_reif| does
-as well.  In this case sound and complete is the most useful so we
-prove it. We have found other cases where only soundness is necessary,
-and will discuss those later.
-
-The final category is functions whose inputs might contain Coq
-variables. An example of where we run into this is the
-\lstinline|PTree.set| and \lstinline|PTree.get| operations that are in
-the postcondition of our assignment rules. These functions can be
-computed on their own, even if they are given a \lstinline|PTree| with
-a coq variable in it as an argument. The problem is that there is no
-way to represent any datastructure that contains a coq variable as a
-constant. This is because there is no way to computationally compare
-two Coq variables for equality. In order to computationally check
-equality over Coq variables, they must first be reified.  Reification
-is designed so that if it sees the same variable twice, it will use
-the same constructor to represent both instances. The constructors can
-be computationally compared, so variables can be compared in reified
-syntax.  We will need to do comparisons on the variables in the local
-assertion almost any time we solve an entailment, so we will need to
-reify the variables.
-
-What that means is that we must rewrite \lstinline|PTree.set| and
-\lstinline|PTree.get| to operate on fully reified PTrees. This can be
-difficult because of the size of the reified syntax. One way to
-mitigate the complexity of the code is to create a function that
-matches a reified expression as a tree:
-
-\begin{minted}{coq}
-Definition as_tree (e : expr typ func) : option
-  ((typ * expr typ func * expr typ func * expr typ func) + typ) := 
-match e with
-  | (App (App (App (Inj (inr (Data (fnode t)))) l) o) r) =>
-    Some (inl (t, l, o, r))
-  | (Inj (inr (Data (fleaf t)))) =>
-    Some (inr t)
-  | _ => None
-end.
-\end{minted}
-
-This allows the function that operates over reified expressions to look very
-similar to original expression, and also simplifies the proof. The function
-and the proof will now have 3 cases. The first have the same behavior (only reified)
-as the \lstinline|leaf| and \lstinline|node| cases of the original function. The third
-case is the case where \lstinline|as_tree| returns \lstinline|None|. This doesn't
-mean that the function doesn't typecheck because there is no requirement on 
-expressions that a PTree can only be represented by those two constructors. There
-could be another constructor with the same denotation, or more likely a PTree
-could be an application of \lstinline|PTree.set| that didn't get simplified.
-If we encounter a reified PTree that isn't represented
-only by the expected constructors, we have a choice depending on
-weather we require completeness or not. If we require completeness,
-we can just apply the set function as a reified constructor. This
-will result in a complete function. That means that if we
-pass our reified function all valid reified arguments
-the denotation of the result of the function will always
-match the denotation of the original function applied
-to the denotation of the arguments. It is the most convenient
-to write an RTac for reified functions of this type because
-there is a pre-built RTac that replaces one reified expression
-with another. This RTac can only be proved sound if there is a proof
-of equality between any two expressions that the tactic might come
-across. The only downside to this approach is that proving that the
-reified function is complete takes much more work than only proving it
-sound. 
-
-These reified functions are an inconvenience and one of the largest
-barriers to easily applying a reflective framework in a setting like
-VST. It is an important open question weather this is avoidable. Can
-a reflective framework reuse computations that might operate
-over Coq variables without requiring reified functions? 
-
-\section{Implementation of Mirror-Core tactics}
+Every technique discussed so far helps to organize proofs and improve
+the performance of automation. Initially, these techniques were
+implemented in the Ltac floyd automation for VST. The floyd tactics
+suffer from serious performance issues, leaving frustrating delays
+between many of the tactic applications. To improve the performance,
+we create a reflective automation tactic, capable of advancing through
+most basic blocks in a given C program.  The tactic was created with
+Malecha et al.'s s \emph{Mirror Core} framework.
 
 There are a number of operations that need to be implemented to create
 a complete reflective tactic: 
@@ -1910,8 +1775,11 @@ a complete reflective tactic:
   transformation
 \end{enumerate}
 
+We will discuss the implementation of each of these in Mirror Core,
+along with the special efforts we had to make VST work within the
+limitations of the reflective framework.
 
-\subsection{Reification and Denotation}
+\section{Reification and Denotation}
 
 The first step in using Mirror-Core is to create a tactic for
 reification. Mirror-Core includes a reification plugin written in
@@ -2157,17 +2025,18 @@ will be passed a Coq bool as opposed to a reified bool. The
 into Mirror Core's lambda calculus. 
 
 The next rule demonstrates reifying a polymorphic equation. Of note is
-the type of the argument \lstinline|a|. It is \lstinline|function
-reify_vst_typ| which means that it will take a Coq type and reify it
+the type of the argument \lstinline|a|. It is 
+\lstinline|function reify_vst_typ| which means that it will take a Coq type and reify it
 into a Mirror Core type.
 
 The features shown here are sufficient to define reification for all
-of the symbols that might be found in VST. 
+of the symbols that might be found in VST. Mirror Core comes with
+built in ways to represent proof states and lemmas, as well as tactics
+to reify into those representations. There is no further customization
+needed, those tactics are automatically created given the
+customization we have presented here. 
 
-
-
-
-\subsection{Modular Reflection}
+\subsection{Representing Dependent Types}
 
 There is one part that is tricky though, and that is the dependently
 typed definition of our separation logic predicates for dealing with
@@ -2242,7 +2111,252 @@ arguments. For the foreseeable future of VST, this dependent typing
 capability is sufficient, but it might make Mirror Core impossible to
 use in some other projects with more difficult dependent types.
 
+\section{Reified Tactics}
 
+A Mirror Core tactic, called an \emph{Rtac} is a Gallina program that transforms
+a reified proof state into a new reified proof state. To be used as a
+tactic, these programs must be proved sound with respect to the Coq
+implication. That is (greatly simplified):
+
+\begin{lstlisting}
+Definition rtac_sound tac := 
+forall reified_state,
+goalD reified_state -> goalD (tac reified_state)
+\end{lstlisting}
+
+Where \lstinline|goalD| is a denotation function for reified proof
+goals. This is simplified because it doesn't deal with the variables
+and unification variables that might be created by the execution of
+the tactic. This leads to a significant increase in the complexity of
+the statement, but the meaning is still the same.
+
+Mirror Core provides a number of tactics that are sound, assuming the
+arguments they are applied to are also sound. 
+The list below details a core set of Rtac connectives. We use 
+{\it tac} to represent Mirror Core tactics and {\it lem} to represent reified lemmas.
+
+\vspace{5mm}
+
+\noindent \begin{tabular}{l@{\quad\quad}p{90mm}}
+{\sf INTRO} & Pulls a universally quantified variable or the left hand
+side of an
+implication into the context (like {\sf intro}). If the head of the goal is an existential
+quantifier, a unification variable is created in its place (like {\sf
+  eexists}). \\
+{\sf THEN} {\it tac1} {\it tac2} & Run {\it tac1} followed by running {\it
+  tac2} on any resulting subgoals (like the ``{\sf ;}'' tactic). The tactic fails if either 
+  {\it tac1} or {\it tac2} fails.\\
+{\sf REPEAT} {\it n} {\it tac} & Runs the tactic {\it tac} {\it n}
+times, or until it fails. \\
+\end{tabular}
+
+\noindent \begin{tabular}{l@{\quad\quad}p{90mm}}
+{\sf TRY} {\it tac} & Runs the tactic {\sf tac} but succeeds and does
+nothing when {\sf tac} fails.\\
+{\sf APPLY} {\it lem} & Applies {\it lem} to the current goal. One
+subgoal is created for each hypothesis of {\it lem}. All variables of
+{\it lem} must be unified.\\
+{\sf EAPPLY} {\it lem} & Similar to {\sf APPLY} but generates
+unification variables for any unmatched variable of {\it lem} instead
+of failing. \\
+{\sf FAIL} & Ignore the proof state and fail. \\ 
+\end{tabular}
+
+The combination of these tactics is sufficient to create the main
+structure of a tactic to progress through a C basic block. We start by
+creating a tactic that will apply to a triple with a single statement:
+
+\begin{lstlisting}
+Definition APPLY_SKIP :=  (APPLY typ func  skip_lemma).
+\end{lstlisting}
+
+Where \lstinline|skip_lemma| is the automatic reification of the same
+skip lemma used elsewhere in VST. Other lemmas are more
+complicated. For example the assignment lemma that we reify is:
+
+\begin{lstlisting}
+Lemma semax_set_localD:
+    forall temp var ret gt 
+      id (e: Clight.expr) ty gs P T1 T2 R Post v,
+  forall {Espec: OracleKind},
+      typeof_temp (mk_tycontext temp var ret gt gs) id = Some ty -> 
+      is_neutral_cast (implicit_deref (typeof e)) ty = true ->
+      msubst_eval_LR T1 T2 e RRRR = Some v ->
+      tc_expr_b_norho (mk_tycontext temp var ret gt gs) e = true ->
+      assertD P (localD (PTree.set id v T1) T2) R = Post ->
+      semax (mk_tycontext temp var ret gt gs) (|> (assertD P (localD T1 T2) R))
+        (Sset id e)
+          (normal_ret_assert Post).
+Proof.
+\end{lstlisting}
+
+To apply this automatically, first the conclusion of the (reified)
+lemma must match the proof goal, then we must solve each of the
+subgoals that remain from the application. That means we must create
+Mirror Core tactics that can solve each of the goals that will arise:
+
+\begin{lstlisting}
+Definition FORWARD_SET Delta Pre s :=
+  let _HLIP :=
+  match compute_hlip_arg (Delta, Pre, s) with
+  | (temp, var, ret, gt, s, R) => HLIP tbl temp var ret gt R s
+  end in
+  let _APPLY_SET :=
+  match compute_set_arg (Delta, Pre, s) with
+  | Some (temp, var, ret, gt, i, e0, ty) =>
+      THEN (EAPPLY typ func (set_lemma temp var ret gt i e0 ty))
+           (TRY (FIRST [REFLEXIVITY_OP_CTYPE tbl;
+                        REFLEXIVITY_MSUBST tbl; 
+                        REFLEXIVITY_BOOL tbl;
+                        AFTER_SET_LOAD tbl;
+                        REFLEXIVITY tbl]))
+  | _ => FAIL
+  end in
+  THEN _HLIP _APPLY_SET.
+\end{lstlisting}
+
+
+\subsection{Modular Reflection}
+
+Before presenting the reflective framework we presented both the
+typechecker, and a canonical form for assertions which allows us to do
+substitutions computationally.  Both our techniques and the reflective
+framework are reflective.  They use proved-sound Coq functions to make
+progress in a proof. This section discusses how these techniques
+interact. There is no interesting interaction between the substitution
+and the typechecker because they occur in different places. When we
+try to apply a reflective framework to a logic that uses these
+reflective techniques, though, we run into some interesting
+challenges. This section discusses those challenges and questions if
+they are avoidable in a differently designed reflective framework.
+
+A function that is used in a logic can fall into one of three
+categories with respect to their interaction with the reflective
+framework:
+
+\begin{itemize}
+\item A function that operates on constants and returns a type that
+  can be represented as a constant requires no modification to be used
+  in MirrorCore.
+\item A function that operates on constants and returns Prop or Type
+  will look exactly the same but return reified results.
+\item A function that might operate on Coq variables must take reified
+  expressions as arguments and return a reified result.
+\end{itemize}
+
+The first category is convenient, but unfortunately fairly few
+functions that we use fall into this category. The reason that they
+can return any type but Type or Prop is because in general if a
+function returns a result we will want to reason about it, and if it
+can't be represented by a constant we will be unable to do anything
+with it in the Mirror-Core framework.
+
+The second category includes the typechecker which returns
+\lstinline|environ -> Prop| that might eventually be discharged by
+either the person writing the proof or some automation.  In order to
+allow reflective automation to have a chance to solve these remaining
+conditions, we must write a new function who instead of returning
+\lstinline|environ -> Prop| returns an \lstinline|expr| whose
+denotation is (provably) the same as the result of the original
+typechecker called on the same arguments.
+
+\begin{minted}{coq}
+Definition tc_expr_reif (e : c_expr) (Delta : tycontext) : expr.
+
+Lemma tc_expr_reif_sound_complete : forall tus tvs e Delta,
+exprD' tus tvs (tyarr tyenviron typrop) (tc_expr_reif e Delta) =
+exprD' tus tbs (tyarr tyenviron typrop) (ftc_expr e Delta).
+\end{minted}
+
+Notice that the right hand side of the equality in the lemma doesn't
+refer to the original typechecking function but the trivially reified
+version. That is, \lstinline|ftc_expr| is a constructor whose
+denotation is equal to \lstinline|tc_expr|, while
+\lstinline|tc_expr_reif| is a function that when applied will have a
+denotation equal to \lstinline|tc_expr| applied to the same
+arguments. The function \lstinline|tc_expr_reif| can compute while no
+progress can be made on \lstinline|ftc_expr|.  We put the denotation
+function on both sides of the function because this allows us to write
+an RTac that finds reified terms that look like \lstinline|ftc_expr e Delta|
+(uncomputable) and replace them with a term 
+\lstinline|tc_expr e Delta|. This is important because we might want to run some other
+RTac on the result of the typechecking. Possibly an entailment solver
+to discharge any remaining conditions.
+
+We prove that \lstinline|tc_expr_reif| is sound, or that when it has a
+denotation, that denotation matches the \lstinline|tc_expr|
+function. We also prove it complete by showing that whenever
+\lstinline|ftc_expr| has a denotation, \lstinline|tc_expr_reif| does
+as well.  In this case sound and complete is the most useful so we
+prove it. We have found other cases where only soundness is necessary,
+and will discuss those later.
+
+The final category is functions whose inputs might contain Coq
+variables. An example of where we run into this is the
+\lstinline|PTree.set| and \lstinline|PTree.get| operations that are in
+the postcondition of our assignment rules. These functions can be
+computed on their own, even if they are given a \lstinline|PTree| with
+a coq variable in it as an argument. The problem is that there is no
+way to represent any datastructure that contains a coq variable as a
+constant. This is because there is no way to computationally compare
+two Coq variables for equality. In order to computationally check
+equality over Coq variables, they must first be reified.  Reification
+is designed so that if it sees the same variable twice, it will use
+the same constructor to represent both instances. The constructors can
+be computationally compared, so variables can be compared in reified
+syntax.  We will need to do comparisons on the variables in the local
+assertion almost any time we solve an entailment, so we will need to
+reify the variables.
+
+What that means is that we must rewrite \lstinline|PTree.set| and
+\lstinline|PTree.get| to operate on fully reified PTrees. This can be
+difficult because of the size of the reified syntax. One way to
+mitigate the complexity of the code is to create a function that
+matches a reified expression as a tree:
+
+\begin{minted}{coq}
+Definition as_tree (e : expr typ func) : option
+  ((typ * expr typ func * expr typ func * expr typ func) + typ) := 
+match e with
+  | (App (App (App (Inj (inr (Data (fnode t)))) l) o) r) =>
+    Some (inl (t, l, o, r))
+  | (Inj (inr (Data (fleaf t)))) =>
+    Some (inr t)
+  | _ => None
+end.
+\end{minted}
+
+This allows the function that operates over reified expressions to look very
+similar to original expression, and also simplifies the proof. The function
+and the proof will now have 3 cases. The first have the same behavior (only reified)
+as the \lstinline|leaf| and \lstinline|node| cases of the original function. The third
+case is the case where \lstinline|as_tree| returns \lstinline|None|. This doesn't
+mean that the function doesn't typecheck because there is no requirement on 
+expressions that a PTree can only be represented by those two constructors. There
+could be another constructor with the same denotation, or more likely a PTree
+could be an application of \lstinline|PTree.set| that didn't get simplified.
+If we encounter a reified PTree that isn't represented
+only by the expected constructors, we have a choice depending on
+weather we require completeness or not. If we require completeness,
+we can just apply the set function as a reified constructor. This
+will result in a complete function. That means that if we
+pass our reified function all valid reified arguments
+the denotation of the result of the function will always
+match the denotation of the original function applied
+to the denotation of the arguments. It is the most convenient
+to write an RTac for reified functions of this type because
+there is a pre-built RTac that replaces one reified expression
+with another. This RTac can only be proved sound if there is a proof
+of equality between any two expressions that the tactic might come
+across. The only downside to this approach is that proving that the
+reified function is complete takes much more work than only proving it
+sound. 
+
+These reified functions are an inconvenience and one of the largest
+barriers to easily applying a reflective framework in a setting like
+VST. It is an important open question weather this is avoidable. Can
+a reflective framework reuse computations that might operate
+over Coq variables without requiring reified functions? 
 
 
 \chapter{Evaluation}
