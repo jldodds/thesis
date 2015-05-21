@@ -2528,10 +2528,244 @@ combines them all seamlessly, completely hiding the fact that it is
 reflective from the user of the tactic. We call the tactic we create
 to do this \lstinline|rforward| or reified forward, where
 \lstinline|forward| is the name of our Ltac tactic that does the same
-thing. 
+thing. The \lstinline|rforward| tactic is heavily based on work by
+Malecha and Bengtson \cite{}, but I will discuss it here to give an
+understanding of the modifcations made to support our tactics, as well
+as the interesting relevant parts of the evaluation. 
+
+\begin{lstlisting}
+Ltac run_rtac reify term_table tac_sound reduce :=
+start_timer "total"; start_timer "02 match_tactic";
+  lazymatch type of tac_sound with
+    | forall t, @rtac_sound _ _ _ _ _ _ (?tac _) =>
+	  let namee := fresh "e" in
+	  match goal with
+	    | |- ?P => 
+              stop_timer "02 match_tactic"; start_timer "03 reification";
+	      reify_aux reify term_table P namee;
+              stop_timer "03 reification";  start_timer "04 match type";
+              let tbl := get_tbl in
+	      let t :=  constr:(Some typrop) in
+	      let goal := namee in
+	      match t with
+	        | Some ?t =>
+	          let goal_result := constr:(run_tac' (tac tbl) (GGoal namee)) in
+                  stop_timer"04 match type"; start_timer "05 vm_compute";
+	          let result := eval vm_compute in goal_result in
+                  stop_timer "05 vm_compute"; start_timer "06 match result";
+	          match result with
+	            | More_ ?s ?g =>
+                      set (g' := g);
+                      set (sv := s);
+                      stop_timer "06 match result"; start_timer "07 goalD";
+                      let gd_prop := 
+                          constr:(goalD_Prop tbl nil nil g') in
+                      stop_timer "07 goalD"; start_timer "08 reduce";
+                      let gd' := 
+                        reduce g' gd_prop in
+                      stop_timer "08 reduce"; start_timer "09 cut1";
+	              cut (gd');  [ stop_timer "09 cut1"; start_timer "10 change";
+                          change (gd_prop -> 
+                                  exprD_Prop tbl nil nil namee);
+
+                          stop_timer "10 change"; start_timer "11 cut2";
+	                  cut (goal_result = More_ sv g');
+                          [ stop_timer "11 cut2"; start_timer "12 exact"; 
+                            (*set (pf := *)
+                             exact_no_check
+                               (@run_rtac_More tbl (tac tbl) 
+                                 sv g' namee (tac_sound tbl))
+                           (*;
+                            exact pf*)
+                           | stop_timer "12 exact"; start_timer "13 VM_CAST"; 
+                             vm_cast_no_check 
+                               (@eq_refl _ (More_ sv g'))
+                             ] 
+	                | stop_timer "13 VM_CAST"; clear (*g'*) sv ]
+	            | Solved ?s =>
+	              exact_no_check (@run_rtac_Solved tbl (tac tbl) s namee (tac_sound tbl) 
+	                (@eq_refl (Result (CTop nil nil)) (Solved s) <: run_tac' (tac tbl) (GGoal goal) = Solved s))
+	            | Fail => idtac "Tactic" tac "failed."
+	            | _ => idtac "Error: run_rtac could not resolve the result from the tactic :" tac
+	          end
+	        | None => idtac "expression " goal "is ill typed" t
+	      end
+              end; try (clear namee; clear_tbl)
+	| _ => idtac tac_sound "is not a soudness theorem."
+  end; stop_timer "total".
+\end{lstlisting}
+
+
+The lines that say \lstinline|end_timer x; start_timer y;| are tactics
+from Braibant's \emph{timing} plugin that allows for timing individual
+parts of tactics, as opposed to the \lstinline|Time| command that
+comes with Coq. \lstinline|Time| is a command in Coq, so it can only
+be called at the top level. The \lstinline|Timing| plugin allows
+multiple timers to be run within tactics. If a timer is run multiple
+times, it will give the average and total times for each time it is
+stopped and started. This is the plugin we use for the evaluation in
+\ref{ch:evaluation}. The tactic prints timings in alphabetical order,
+so each name is preceeded by a number to make sure they come out in
+the order of execution. We will refer to each section of the tactic by
+the name of its timer.
+
+Many choices in the creation of this tactic are made for the sake of
+efficiency, even at the cost of clarity. For example, we cut the
+solutions to subgoals and then use the
+\lstinline|exact_no_check| tactic where we would often use the apply
+tactic and then solve subgoals individually. This is because
+\lstinline|exact_no_check| does no checks for correctness, it simply
+fills in the proof with the provided term, not checking that the term
+matches the proof goal. This means that \lstinline|exact_no_check| is
+an \emph{unsafe} tactic. It will always succeed when it is run, but
+when the proof is checked using \lstinline|Qed.|, the checking might
+fail. This is in contrast to most of Coq's tactics, which do enough
+typechecking that we can be reasonably confident that if the tactic
+succeeds \lstinline|Qed| will also succeed. We are confident using
+this tactic because we know that we are giving it the exact term that
+will match the proof goal. This is because we have gotten the parts of
+the term directly from the proof goal, and constructed other parts of
+the term using tactics that do perform typechecking. The result of
+this is that although the \lstinline|rforward| tactic uses an unsafe
+tactic, it uses it in such a way that \lstinline|rforward| should not
+be considered unsafe. That is, a user can be reasonably confident that
+if \lstinline|rforward| succeeds, the \lstinline|Qed| will succeed as
+well.
+
+
+The tactic here is not for performing symbolic execution on verifiable
+C programs, instead it is a Ltac for running any RTac that takes a
+reification table as an argument. This tactic applied to our symbolic
+execution RTac is an LTac that performs fast symbolic execution of
+verifiable C
+
+\begin{lstlisting}
+Ltac rforward := run_rtac reify_vst term_table (SYMEXE_sound 1000) cbv_denote.
+\end{lstlisting}
+
+The \lstinline|run_rtac| takes an rtac soundness proof as an
+argument. The first part of the tactic, ``match proof'', simply
+extracts the tactic from the soundness proof. The next step is to
+reify. The only thing to note here is that we pass the reification
+tactic the name that it should give the reified term once it has
+created it. It would be nice if we could do the same with the table
+name, but that is a feature that will appear in a future version of
+Mirror Core. Next we find the table by matching its type. Because this
+is a type that is created specifically for reification, it is
+unlikely that there will be more than the one created by reification. 
+
+The next step is to create the term that will be used to compute the
+result of symbolic execution. The function \lstinline|run_tac'| is a
+gallina function that runs an RTac on a \emph{reified} goal. We put
+the reified term inside of the \lstinline|GGoal| constructor to create
+a complete reified goal, and apply \lstinlin|run_rtac'| to the tactic
+and the reified goal.  This step only creates the term. It doesn't do
+any reduction. The reason we do this separately is that we will later
+need the term in both reduced and not reduced forms. 
+
+The next step is simple, but very important. Here we call
+\lstinline|vm_compute| on the term we just created. This results in a
+reified term that is the result of running the RTac. It can be either
+\lstinline|Fail|, \lstinline|Solved s|, or \lstinline|More g| where
+\lstinline|(s : subst)| represents assignments to unification
+variables, and \lstinline|(g : goal)| is a reified goal that is
+implied by the original goal. If the result is \lstinline|Fail| the
+Ltac tactic does nothing. If it is \lstinline|Solved|, we apply a
+soundness lemma for RTac that says a goal is solved if an
+RTac is sound and produced a solved result. The soundness lemma also
+tells Coq how any existential variables that existed before the tactic was run
+were instantiated. The interesting part of applying the
+\lstinline|Solved| lemma is that we need to perform the computation of
+the tactic function using a vm cast ( \lstinline|<:| ). VM Cast is an
+operation that does the same thing as a normal cast \lstinline|( : )|,
+but it compiles to bytecode and uses a virtual machine, just like the
+\lstinline|vm_compute| tactic. 
+Even though we have
+already computed the result once, we need the proof of equality in
+order to apply the soundness lemma. If we write the proof using a vm_
+
+ The most work remains to be done if the result is a
+\lstinline|More g|. In this case, we need to include the (possibly quite
+large) result in the application of the lemma, and simplify the
+denotation function to leave a result that is readable by the user. 
+The first step here is to create a goal denotation of the result
+\lstinline|g|. Then we use a tactic \lstinline|reduce| that was
+supplied to the tactic. This is generally a \lstinline|cbv| tactic
+with a whitelist, but it might want to do other sorts of cleanup as
+well. For example, in the future our reduce tactic will attempt to
+re-fold identifiers. Identifiers in CompCert are \lstinline|ident|s
+where 
+
+\begin{lstlisting}
+Definition ident := positive
+\end{lstlisting}
+
+Because we use \lstinline|ident|s as constants and run
+\lstinline|vm_compute| on our reified term, once we have done the
+computation all aliases for identifiers (like \lstinline|_x| or
+\lstinline|_y|) are unfolded, and we see only the \lstinline|positive|
+number that they are represented by. In the future, the
+\lstinline|reduce| tactic will need a way to find all of the names
+that have been unfolded and fold them again, so the user can see
+variable names instead of numbers. 
+
+The lemma for an RTac that returns \lstinline|More| is:
+
+\begin{lstlisting}
+Lemma run_rtac_More tac s goal e
+  (Hsound : rtac_sound tac) 
+  (Hres : run_tac' tac (GGoal e) = More_ s goal) :
+  goalD_Prop tbl nil nil goal -> exprD_Prop tbl nil nil e.
+\end{lstlisting}
+
+At the time the tactic is run, the goal is still unchanged. The
+reification tactic has created reified terms, but they are above the
+line where the \lstinline|exact| tactic can't manipulate them
+directly. The tactic needs to make the proof state match the lemma
+exactly while leaving the reduced term as the only remaining
+subgoal.
+
+So if our goal is 
+
+\begin{lstlisting}
+________
+g
+\end{lstlisting}
+
+the first step is to \lstinline|cut| the denotation of the reduced
+result term. This should be a human-readable Coq term that we will
+call \lstlisting|g'|. Cut has two subgoals. The first is:
+
+\begin{lstlisting}
+________
+g' -> g
+\end{lstlisting}
+
+and the second is
+\begin{lstlisting}
+_____________
+g'
+\end{lstlisting}
+
+The second goal is exactly what we want to leave for the user, so we
+will leave it alone. Now the tactic needs to discharge the first
+subgoal using the soundness proof of the RTac. It uses the
+\lstinline|change| tactic to unify the first subgoal with the form
+needed to match \lstinline|run_rtac_more|. This leaves us with a goal:
+
+\begin{lstlisting}
+________
+gd_prop reified_g' ->  exprD_Prop reified_g
+\end{lstlisting}
+
+
+
+
+Once the goal is reduced, we change 
+
 
 \chapter{Evaluation}
-
+\label{ch:evaluation}
 We combine the steps of reification, computation, and reflection
 together with an application of the soundness proof of Rtac and our
 symbolic execution function to create the \lstinline|rforward|, or
