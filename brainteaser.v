@@ -365,6 +365,92 @@ generalize dependent v. generalize dependent r.
             unfold NPeano.modulo in *.
             destruct m. omega. 
 
+
+Lemma minus_modulo_spec2 : 
+forall l r m v,
+l < m ->
+r < m ->
+v < m ->
+m > 0 ->
+(v + r) mod m = l ->
+(minus_modulo l r m = v).
+Proof.
+induction l; intros.
+  + simpl in *.
+    destruct r. 
+      * rewrite add_comm in H3.
+        simpl in H3. rewrite mod_small in H3; omega.
+      * assert (v + S r < (2 * m)). omega.
+        assert ((v + S r) / m < 2).
+        clear - H4 H.
+        induction (v + S r). rewrite div_0_l; 
+        omega. 
+        simpl in *. destruct m. simpl.
+Admitted.
+
+Lemma divmod_x_lt_y :
+forall x y r u ,
+x < y ->
+y > 0 ->
+u <= y ->
+u > x ->
+divmod x y r u = (r, u-x).
+Proof.
+induction x; intros.
+- simpl.  f_equal. omega.
+- simpl in *. destruct u.
+  +  omega.
+  + simpl in *.
+    apply IHx; omega.
+Qed.
+
+
+rewrite divmod_x_lt_y in H3; try omega.
+
+Lemma divmod_y :
+forall x y r u v,
+x < y ->
+y > 0 ->
+u <= y ->
+r < x ->
+divmod x y r u = (v, y) ->
+x = 0.
+induction x; intros.
+- omega.
+- simpl in *. destruct u.  Print divmod. Print NPeano.modulo.
+(*simpl omega.
+  + simpl in 
+  
+  
+
+ simpl in *. destruct u.
+  + apply IHx in H1. subst. omega.
+
+        destruct m. omega.
+        { induction m.
+           - simpl in *. omega.
+           - simpl in *. simpl in H3
+          
+        SearchAbout NPeano.modulo.
+      * subst; auto; try omega.
+        rewrite mod_0_l; omega.
+      * assert ((v + S r) = m).
+        omega.
+        rewrite <- H3. rewrite mod_same. auto. omega.
+  + simpl in *.
+    destruct r.
+      * rewrite add_comm. simpl. rewrite mod_small. auto. omega.
+      * rewrite add_comm. simpl. edestruct s_mod. Focus 2. rewrite H3.
+        f_equal. rewrite add_comm. apply IHl; try omega. omega.
+        assert ((v + r) mod m = l). apply IHl; try omega.
+        assert (S l = m); try omega.
+        clear IHl. 
+        clear - H4 H3 H1.
+          { rewrite add_comm in H4. remember (r + v). clear Heqn r v.
+            unfold NPeano.modulo in *.
+            destruct m. omega. *)
+
+
 Lemma mod_rollover_divmod :
 forall n m u v l,
 m <> 0 ->
@@ -385,7 +471,7 @@ induction n; intros.
   + eapply IHn; try omega. apply H1.
 Qed.
       
-
+(*
             generalize dependent l. generalize dependent m.
 
             induction n; intros.
@@ -407,7 +493,7 @@ Qed.
         omega. omega. omega. rewrite <- H4 in *. f_equal. clear H2. clear H4.
         remember (divmod (v + r) n0 0 n0). destruct p. simpl in H3. 
         
-        
+  *)      
     
                                  
 
@@ -428,13 +514,7 @@ induction a; intros.
   edestruct s_mod. Focus 2. rewrite H3. rewrite <- IHa; try omega.
   simpl. destruct s; auto. rewrite minus_modulo_0_r. auto. 
   apply mod_bound_pos; omega.
-  
-  
-  
-
-    
-    
-
+Admitted.
     
     
 
@@ -445,44 +525,19 @@ my_number < total_number ->
 length hats = total_number ->
 Forall (fun x => x < total_number) hats ->
 my_hats = remove_nth hats my_number ->
-modulo (fold_right plus 0 hats) total_number = my_number ->
+NPeano.modulo (fold_right plus 0 hats) total_number = my_number ->
 (winning_strategy my_number total_number my_hats) = nth my_number hats 0.
 Proof.
-intros.
-unfold winning_strategy. 
-rewrite H2.
-rewrite H3.
-induction hats.
+induction hats; intros.
 - simpl in *. destruct my_number; subst; auto.
 - simpl. simpl in H2. destruct my_number.
-  subst. simpl. simpl in IHhats.
-  simpl in H3. 
+  + subst. simpl. unfold winning_strategy.
+    simpl.
+Admitted.
 
-
-my_hats = remove_nth hats my_number ->
-(winning_strategy my_number total_number my_hats) + (fold_right plus 0 my_hats) = 
-NPeano.modulo (fold_right plus 0 hats) total_number ->
-nth my_number hats 0 = winning_strategy my_number total_number (remove_nth hats my_number).
-intros.
-unfold winning_strategy in *.
-rewrite <- H2 in *.
-remember (fold_right plus 0 hats) as all_hats_sum.
-remember (fold_right plus 0 my_hats) as my_hats_sum.
-assert ((NPeano.modulo my_hats_sum total_number) = minus_modulo (NPeano.modulo all_hats_sum total_number) my_number total_number). 
-subst. induction hats.
-- simpl. auto.
-- simpl. 
-  induction my_number.
-  + simpl. 
-Lemma x : forall total n,   n - (my_total) + my_total = all_total -> all_total - my_total = n - mytotal 
  
-induction total_number.
-- simpl in *. destruct hats; simpl in *; destruct my_number; intuition; try inversion H.
-- simpl in *. unfold winning_strategy in *. simpl in *.
-  rewrite <- H2 in *.
+ 
   
-  
-SearchAbout NPeano.modulo.
 
 Theorem we_win : 
 forall K,

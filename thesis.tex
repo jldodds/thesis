@@ -1783,7 +1783,14 @@ limitations of the reflective framework.
 
 The first step in using Mirror-Core is to create a tactic for
 reification. Mirror-Core includes a reification plugin written in
-OCaml. The plugin is modular, meaning it can be updated with rules for
+OCaml. \footnote{It is an OCaml plugin because LTac typechecks agressively
+when creating terms. An LTac that recursively builds a term (A (B (C))) will
+typecheck C, then B, then B C, then A, then (A (B C)) and so on... Coq 8.5
+will have a command that avoids typechecking, so it can have an LTac reifier
+instead of a plugin. We prefer to avoid plugins because they are very tricky
+to build in Windows. As a result, we have never been able to run the software
+discussed in this chapter in a Windows environment}.
+The plugin is modular, meaning it can be updated with rules for
 translating various languages. Although the tactic can be updated with
 rules for translation, there must be an existing reified syntax for
 the logic. This syntax comes in two parts.
@@ -2014,6 +2021,8 @@ reification of the bool type. It simply matches the type
 plugin this will be an exact match by equality. When the type is
 matched, it tells the reification tactic that it should emit
 \lstinline|tybool|.
+
+
 
 The second rule doesn't make an exact match, instead matching the type
 of the expression to bool. The \lstinline|RHasType| pattern takes an
@@ -2742,6 +2751,7 @@ g' -> g
 \end{lstlisting}
 
 and the second is
+
 \begin{lstlisting}
 _____________
 g'
@@ -2758,11 +2768,36 @@ ________
 gd_prop reified_g' ->  exprD_Prop reified_g
 \end{lstlisting}
 
+Next we cut the result of running the RTac which we have already 
+computed and matched against and again get two subgoals:
 
+\begin{lstlisting}
+________
+goal_result = More_ sv g' -> gd_prop reified_g' ->  exprD_Prop reified_g
+\end{lstlisting}
 
+\begin{lstlisting}
+________
+goal_result = More_ sv g'
+\end{lstlisting}
 
-Once the goal is reduced, we change 
+The first goal now matches our soundness lemma exactly, but still
+needs the soundness proof for the tactic. We already have this in
+\lstinline|rforward| so we apply it using \lstinline|exact_no_check| 
+which does no checking and simply believes that the proof term provided
+matches the proof state.
 
+Similarly, to discharge the second goal, we use 
+\lstinline|vm_cast_no_check| which will insert a vm cast (\lstinline| <: |)
+but again, not check that the cast is valid, or that it matches the proof
+goal. We know that it is valid because we have already done the computation
+during the execution of the tactic and matched the result, and
+we know that it matches the proof goal because we created both the
+goal and the proof of the goal.
+
+This solves all of the subgoals but the reduced denotation of what
+remained when the RTac finished running, meaning that all the user
+of the tactic will ever see is the result. 
 
 \chapter{Evaluation}
 \label{ch:evaluation}
