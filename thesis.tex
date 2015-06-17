@@ -501,7 +501,7 @@ state represented by the precondition.
 
 
 \chapter{Typechecking C Expressions}
-
+\label{ch:typechecking}
 A type system is a formalization that assigns types to subexpressions
 of a programming language and describes when a program uses those
 expressions correctly according to their types.  It is often possible to
@@ -1442,8 +1442,8 @@ work (Appel \cite{appel06}) used a number of
 tactics to automate proofs as well. In this system, the user was left with the
 burden of completing proofs of expression evaluation.
 
-The proof rules we use in this paper are also used in the implementation of a
-verified symbolic execution called VeriSmall \cite{appel11:verismall}. 
+The proof rules we use in this thesis are also used in the implementation of a
+verified symbolic execution called VeriSmall \cite{appel11:cpp}. 
 VeriSmall does efficient, completely automatic 
 shape analysis.  
 
@@ -1788,7 +1788,7 @@ To translate back, you can simply unfold the definitions of \lstinline|assertD|
 and \lstinline|localD|.
 
 \subsection{Substitution in Canonical Form}
-
+\label{subst_canon}
 Substitution in this assertion is as simple as adding/replacing a
 mapping in $T_1$ or $T_2$. To see why, imagine that we are doing a
 substitution on a temporary variable $x$.  \lstinline|$P$ : list prop|
@@ -1949,52 +1949,74 @@ Even the current form is not completely canonical. It could be
 restricted further which would improve performance in some ways, but
 also inconvenience the user in others. Finding a way to sort the
 $\SEP$ and keep it sorted as new conjunctions are added could lead to
-very efficient and simple entailment solving. This is a harder problem
-than sorting the $\LOCAL$ though, because we want $\SEP$ to contain a
-variety of predicates, including predicates that are created by the
-user. The other problem is that Coq variables can appear as arguments
-to the predicates, making it impossible to establish an ordering over
-them. Even so, any amount of canonicalization of the $\SEP$ could help
-with entailment solving efficiency, so it is worth a look in the
-future. The assertions might also be made more canonical by examining
-the types of pure assertions that often occur and giving them a
-special location. As an example, propositions about the range of
-integers commonly occur, especially doing proofs about programs that
-operate on arrays. Creating a special form for specific parts of pure
-operations might benefit the automation by making it simple to look
-for assertions about the range of a particular variable. It might also
-help future decision procedures by gathering information that is
-relevant to a particular type of goal. Again, this is harder to
-make canonical because there is no concrete datastructure equivalent
-to the identifier names in the $\LOCAL$. Instead there are only Coq
-variables, which might be mixed with function applications making any
-form of sorting them difficult. 
+very efficient and simple entailment solving. This is because one of
+the main steps in entailment solving is \emph{cancellation}, which
+attempts to match
+each of the $r$ separating conjuncts on the right hand side of an
+entailment with one of the $l$ conjuncts on the left hand side. If the
+canceller finds a match, it can remove the matching conjuncts from
+both sides of the entailment. In an unsorted $\SEP$ this takes $l * r$
+steps in the worst case. In a sorted $\SEP$ it would be decreased to
+$l + r$, at the cost of making additions to the $\SEP$ slightly
+slower. 
 
+This is a harder problem than sorting the $\LOCAL$ though, because we
+want $\SEP$ to contain a variety of predicates, including predicates
+that are created by the user. The other problem is that Coq variables
+can appear as arguments to the predicates, making it impossible to
+establish an ordering over them. Even so, any amount of
+canonicalization of the $\SEP$ could help with entailment solving
+efficiency, so it is worth a look in the future. 
+
+The assertions might also be made more canonical by examining the
+types of pure assertions that often occur and giving them a special
+location. As an example, propositions about the range of integers
+commonly occur, especially doing proofs about programs that operate on
+arrays. Creating a special form for specific parts of pure operations
+might benefit the automation by making it simple to look for
+assertions about the range of a particular variable. It might also
+help future decision procedures by gathering information that is
+relevant to a particular type of goal. Again, the variety of
+expressions that we might want to reason about makes organizing this
+type of assertion more difficult than what we did in the $\LOCAL$. 
 
 
 \chapter{Applying A Reflective Framework}
 \label{ch:reflection}
 
-The techniques discussed so far help to organize proofs and improve
-the performance of automation. Initially, these techniques were
-implemented in the Ltac floyd automation for VST. The floyd tactics
-can suffer from serious performance issues, leaving frustrating delays
-between tactic applications. To improve the performance,
-we create a reflective automation tactic, capable of advancing through
-most basic blocks in a given C program.  The tactic was created with
-Malecha et al.'s s \emph{Mirror Core} framework \cite{malecha:thesis}.
+
+Our proof (semi)automation has been implemented by a program that we
+call "floyd", written in Coq's Ltac language.  Ltac is an interpreted,
+dynamically typed, backtracking language with powerful
+pattern-matching on proof goals, that produces a trace of its
+(nonbacktracked) execution in the form of a proof object.
+
+To improve performance, we want to write our proof automation in
+Gallina: this is a compilable, statically typed, non-backtracking
+language with simpler (ML-like) pattern matching on inductive data
+types, that produces no trace of its execution.  
+
+The techniques
+discussed so far help to organize proofs and improve the performance
+of automation. Initially, these techniques were implemented in the
+Ltac floyd automation for VST. The floyd tactics can suffer from
+serious performance issues, leaving frustrating delays between tactic
+applications. To improve the performance, we create a reflective
+automation tactic, capable of advancing through most basic blocks in a
+given C program.  The tactic was created with Malecha et al.'s s
+\emph{Mirror Core} framework \cite{malecha:thesis}.
 
 There are a number of operations that need to be implemented to create
 a complete reflective tactic: 
 \begin{enumerate}
 \item a reification tactic to transform proof states into a
   syntax that can be computed on,
-\item functions that operate on the reified syntax, transforming
+\item functions that compute on the reified syntax, transforming
   reified syntax into other reified syntax,
 \item soundness proofs that the functions make valid transformations
   on reified proof states wrt Coq,
-\item denotation functions to create proof goals from reified syntax,
-  and
+\item denotation functions to reflect reified syntax back into Coq
+  proof goals, and
 \item a tactic to combine these steps into a single, fast, proof state
   transformation
 \end{enumerate}
@@ -2004,35 +2026,31 @@ along with the interesting interactions between VST and
 the reflective framework.
 
 \section{Reification and Denotation}
-
-The first step in using Mirror-Core is to create a tactic for
-reification. Mirror-Core includes a reification plugin written in
-OCaml. \footnote{It is an OCaml plugin because Ltac typechecks agressively
-when creating terms. An Ltac that recursively builds a term (A (B (C))) will
-typecheck C, then B, then B C, then A, then (A (B C)) and so on... Coq 8.5
-will have a command that avoids typechecking, so it can have an Ltac reifier
-instead of a plugin. We prefer to avoid plugins because they are very tricky
-to build in Windows. As a result, we have never been able to run the software
-discussed in this chapter in a Windows environment}.
-The plugin is modular, meaning it can be updated with rules for
-translating various languages. Although the tactic can be updated with
-rules for translation, there must be an existing reified syntax for
-the logic. This syntax comes in two parts.
+\label{sec:reification}
+The first step in using Mirror Core is to create a tactic for
+reification. Mirror Core includes a reification plugin written in
+OCaml. \footnote{We use an OCaml plugin because Ltac typechecks
+  agressively when creating terms, leading to quadratic-time behavior
+  when implementing Ltac reifiers. An Ltac that recursively builds a
+  term (A (B (C))) will typecheck C, then B, then B C, then A, then (A
+  (B C)) and so on.  We prefer to avoid plugins because they seem to
+  be less portable than plugin-free Coq developments}.  The plugin is
+modular, meaning it can be updated with rules for translating various
+languages. The first step is to create a reified syntax for our
+logic. This syntax is made up of two parts:
 
 \begin{enumerate}
-\item An inductive datastructure with definitions for each type and
-\item an inductive datastructure with syntax for \emph{interpreted}
+\item An inductive data structure with definitions for each type and
+\item an inductive data structure with syntax for \emph{interpreted}
   functions.
 \end{enumerate}
 
 The functions are interpreted because they have meaning without
-examining the denotations. Crucially, Mirror-Core can extend a
+examining the denotations. Crucially, Mirror Core can extend a
 symbol table with \emph{uninterpreted} functions if it must reify a
 function that it doesn't have a rule for. This allows it to work in
 the general case, where all symbols may not be known at the time the
-tactic is created. We call these functions uninterpreted because to
-Mirror Core programs, it is imposible to tell what any given
-uninterpreted function might be. The denotation is available in a
+tactic is created. The denotation of each uninterpreted function is available in a
 symbol table, but the index in that table is all that can be reasoned
 about reflectively, since it is impossible to match a function in
 Gallina. 
@@ -2044,13 +2062,13 @@ that an arrow type exists:
 \begin{lstlisting}
 Inductive typ :=
 | tyArr : typ -> typ -> typ
-| tytycontext
+| tytycontext : typ
 | tylist : typ -> typ
 | ...
 \end{lstlisting}
 
-There is also a denotation function that maps \lstinline|typ|, the
-reified type to \lstinline|Type|, Coq's type:
+There is also a denotation function that maps \lstinline|typ| (the
+reified type) to \lstinline|Type| (Coq's type):
 
 \begin{lstlisting} 
 Fixpoint typD (t : typ) : Type :=
@@ -2128,41 +2146,41 @@ represented by each constructor:
 \begin{lstlisting}
 Definition typeof_const (c : const) : typ :=
  match c with
-| fN _ => tynat
-| fZ _ => tyZ
-| fint _ => tyint
-| fint64 _ => tyint64
+| fN _ $~$ => tynat
+| fZ _ $~$ => tyZ
+| fint _ $~$ => tyint
+| fint64 _ $~$ => tyint64
 | ...
 
-Definition typeof_eval (e : eval) :=
+Definition typeof_eval (e : eval) : typ :=
  match e with
-| feval_cast _ _ => (tyArr tyval tyval)
-| fderef_noload _ => (tyArr tyval tyval)
-| feval_field _ _ => (tyArr tyval tyval)
-| feval_binop _ _ _=> (tyArr tyval (tyArr tyval tyval))
-| feval_unop _ _ => (tyArr tyval tyval)
-| feval_id _  => (tyArr tyenviron tyval)
+| feval_cast _$~$  _ $~$ => (tyArr tyval tyval)
+| fderef_noload _ $~$ => (tyArr tyval tyval)
+| feval_field _ $~$ _ $~$ => (tyArr tyval tyval)
+| feval_binop _ $~$ _ $~$ _ $~$ => (tyArr tyval (tyArr tyval tyval))
+| feval_unop _ $~$ _ $~$ => (tyArr tyval tyval)
+| feval_id _  $~$ => (tyArr tyenviron tyval)
 end.
 
-Definition typeof_other (o : other) :=
+Definition typeof_other (o : other) : typ :=
 match o with
-| feq t => tyArr t (tyArr t typrop) 
-| fnone t => tyoption t
-| fsome t => tyArr t (tyoption t)
+| feq t $~$ => tyArr t (tyArr t typrop) 
+| fnone t $~$ => tyoption t
+| fsome t $~$ => tyArr t (tyoption t)
 | ...
 end.
 
 Definition typeof_func' (f: func') : typ :=
 match f with
-| Const c => typeof_const c
-| Zop z => typeof_z_op z
-| Intop i => typeof_int_op i
-| Value v => typeof_value v
-| Eval_f e => typeof_eval e
-| Other o => typeof_other o
-| Sep s => typeof_sep s
-| Data l => typeof_data l
-| Smx t => typeof_smx t
+| Const c $~$ => typeof_const c
+| Zop z $~$ => typeof_z_op z
+| Intop i $~$ => typeof_int_op i
+| Value v $~$ => typeof_value v
+| Eval_f e $~$ => typeof_eval e
+| Other o $~$ => typeof_other o
+| Sep s $~$ => typeof_sep s
+| Data l $~$  => typeof_data l
+| Smx t $~$ => typeof_smx t
 end.
 \end{lstlisting}
 
@@ -2218,15 +2236,17 @@ Definition func := (SymEnv.func + @ilfunc typ + @bilfunc typ + func')%type.
 \end{lstlisting}
 
 The first item is a symbolic environment where we can put
-uninterpreted functions. The second and third are modular logics
+uninterpreted functions. The second and third are modular logics, a
+pure and separation logic respectively, 
 % TODO: citation?
 that might eventually allow us to take advantage of generic decision
-procedures such as cancellers. Finally \lstinline|func'| is our syntax definition.
+procedures such as cancellers. Finally, \lstinline|func'| is our syntax definition.
 
 With this syntax created, the next step is to tell Mirror Core's
-tactic how to use it. This is done by creating tables of rules which
-map parts of proof goals to reified syntax. Mirror Core's reification
-tactic is a Coq plugin which provides syntax for defining these rules:
+reification tactic how to use it. This is done by creating tables of
+rules that map parts of proof goals to reified syntax. Mirror Core's
+reification tactic is a Coq plugin which provides syntax for defining
+these rules:
 
 \begin{lstlisting}
 Reify Pattern patterns_vst_typ += (!!bool) => tybool.
@@ -2244,7 +2264,7 @@ This selection of rules shows most of the features that can be
 used. The identifiers \lstinline|patterns_vst_typ| \lstinline|patterns_vst_hastype| and
 \lstinline|patterns_vst| tell the plugin which table the rule belongs
 to. Elsewhere in the file, the tables are defined and given an order
-that they will be tried by the reifier. The first pattern defines the
+in which they will be tried by the reifier. The first pattern defines the
 reification of the bool type. It simply matches the type
 \lstinline|!!bool| where \lstinline|!!| is notation that tells the
 plugin this will be an exact match by equality. When the type is
@@ -2254,19 +2274,25 @@ matched, it tells the reification tactic that it should emit
 The second rule doesn't make an exact match, instead matching the type
 of the expression with bool. The \lstinline|RHasType| pattern takes an
 argument, denoted by \lstinline|?0|. The 0 means that the variable is
-given to the first argument of the function on the right hand side of
-the rule. The type \lstinline|id bool| of the argument means that it
-will be passed a Coq bool as opposed to a reified bool. The
-\lstinline|Inj| constructor allows an injection of a reified function
-into Mirror Core's lambda calculus:
+given to the first argument (variable \lstinline|a|) of the function
+on the right hand side of the rule. The type \lstinline|id bool| of
+the argument means that it will be passed a Coq bool as opposed to a
+reified bool. \lstinline|id| is just the identity function, but its
+presence tells the reification tactic how to process the value that is
+supplied to the function, in this case, \lstinline|id| says that there
+is no further processing required.  The \lstinline|Inj| constructor
+allows an injection of a reified function into Mirror Core's lambda
+calculus. This is not the same as a Verifiable C \lstinline|expr|, it
+is extensible language of reified Mirror Core terms:
 
 \begin{lstlisting}
   Inductive expr : Type :=
-  | Var : var -> expr
-  | Inj : func -> expr
-  | App : expr -> expr -> expr
-  | Abs : typ -> expr -> expr
-  | UVar : uvar -> expr.
+  | Var : var -> expr  (* an identifier using de Bruijn indices. *)
+  | Inj : func -> expr (* injection of a function into the lambda calculus *)
+  | App : expr -> expr -> expr (* left expr applied to right expr *)
+  | Abs : typ -> expr -> expr (* abstraction. $\lambda (x : t). e$ 
+  | UVar : uvar -> expr. (* unification variable, index into a mapping
+                            environment *)
 \end{lstlisting}
 
 The next rule demonstrates reifying a polymorphic equation. Of note is
@@ -2276,10 +2302,25 @@ into a Mirror Core type.
 
 The features shown here are sufficient to define reification for all
 of the symbols in VST. Mirror Core comes with built in representations
-of proof states and lemmas, as well as tactics that reify into
-those representations. There is no further customization needed, those
+of proof states and lemmas, as well as tactics that reify into those
+representations. There is no further customization needed, those
 tactics are automatically created given the customization we have
 presented here.
+
+As an example, the following Coq term:
+
+\begin{lstlisting}
+(fun (x : val) => plus x (Vint 3))
+\end{lstlisting}
+
+could be reified as
+
+\begin{lstlisting}
+Abs tyval (App (App (Inj fplus) (Var 0)) (App (fvint (Inj (fint 3)))))
+\end{lstlisting}
+
+where constructors that start with the letter ``f'' are constructors
+in func, like \lstinline|feq| above.
 
 Although Mirror Core can automatically generate a tactic for
 reification, it can't generate an equivalent tactic for taking the
@@ -2287,10 +2328,25 @@ denotation of a reified expression. The denotation is simply
 represented by a function that we have already defined. It isn't the
 functionality that is difficult, but how the denotation is
 unfolded. To see what the problem is, imagine we have a term that will
-explode when we run \lstinline|vm_compute| on it. This could be some
-complex proposition applied to some number of Coq variables. There is
-no problem in reifying this, giving us a term that looks something
-like \lstinline|exprD (complex_thing_reified)|. If we run
+explode when we run \lstinline|vm_compute| on it. For example:
+
+\begin{lstlisting}
+Fixpoint do_n (f : nat -> nat) n d :=
+match n with
+| S n' =>  f (do_n f n' d)
+| _ => d
+end.
+
+forall n, do_n (fun n => if (ltb 1 n) then  n else n)  50 n = n
+\end{lstlisting}
+explodes because \lstinline|ltb 1 n| can't compute. This means that
+the recursive function will appear three times for each recursive
+call, resulting in $3^{50}$ or approximately $7\times 10^{23}$ unfoldings
+of the function. The same problem arises with many quantified
+predicates that are unable to unfold completely. 
+
+There is no problem in reifying this, giving us a term that looks
+something like \lstinline|exprD (complex_thing_reified)|. If we run
 \lstinline|vm_compute| on this term to try to get the denotation, the
 complex thing will also be unfolded once the denotation is taken,
 resulting in a massive term that can take a very long time to
@@ -2302,10 +2358,11 @@ that belongs to the original term alone. Coq has a tactic called
 should efficiently unfold.
 
 We can also supply \lstinline|cbv| with a blacklist. This might be
-more convenient if we know all of the functions that will appear in
-our proof goals, because we will likely need a much shorter list. If
-we allow the user to supply functions and predicates to our logic,
-though, specifying a whitelist is the only viable option.
+more convenient if we knew all of the functions that will appear in
+our proof goals, because the blacklist would likely be shorter than
+the whitelist. Since we allow the user to supply functions and
+predicates to our logic, though, specifying a whitelist is the only
+viable option.
 
 The problem with cbv is that whitelists can't be defined
 modularly. That is if I define a tactic 
@@ -2314,8 +2371,8 @@ modularly. That is if I define a tactic
 cbv [ def1 def2 def3 ]
 \end{lstlisting}
 
-There is no way that I can append another list onto the one I have
-defined. At best, a finite number of names can be supplied as
+There is no way that I can append another white list onto the one I have
+defined. At best, a predefined number of names can be supplied as
 arguments:
 
 \begin{lstlisting}
@@ -2323,29 +2380,37 @@ Ltac do_cbv arg1 arg2 :=
 cbv [ def1 def2 def3 arg1 arg2 ]
 \end{lstlisting}
 
-Meaning the best that can be done is to copy a list from another
-project. Our cbv whitelist is composed of over 700 constructors, some
+Our cbv whitelist is composed of over 700 constructors, some
 copied from Mirror Core's whitelist, some copied from Charge!, and
 some of our own. A very convenient feature for \lstinline|cbv| would
 be a method for composing two whitelists.
 
 \subsection{Representing Dependent Types}
 \label{sub:dependent}
-We have defined a reification function in a reasonably straightforward
-manner, using the features of the Mirror Core plugin. There is one
-part that is tricky though, and that is the dependently typed
-definition of our separation logic predicates for dealing with data
-structures:
+
+
+In (pencil-and-paper) separation logic, since Reynolds
+\cite{reynolds02}, we abbreviate 
+\lstinline|(p.head $\mapsto$  h * p.tail $\mapsto$ t)| with 
+\lstinline|(p $\mapsto$ (h,t))|, where (implicitly) there is some record type $\tau$ with
+components \lstinline|(head,tail)|.  We can view this "composite maps-to" as a
+dependently typed operator, \lstinline|p $\mapsto_{\tau}$ v|, where $\tau$ is the (deeply
+embedded syntactic) description of a C-language data type, and the
+type of \lstinline|v| depends on the value of $\tau$.  In our separation logic, we
+name this dependently typed composite maps-to \lstinline|data_at|:
 
 \begin{lstlisting}
 reptype (t: type) : Type
 data_at : Share.t -> forall t : type, reptype t -> val -> mpred
-
+\end{lstlisting}
+\begin{lstlisting}
 ...
 | fdata_at : type -> sep (*reified data_at)*
 ...
 \end{lstlisting}
 
+This predicate is a key factor that makes VST usable, but it is
+difficult to reify because it is dependently typed.
 \lstinline|data_at| is dependently typed because it is a single
 predicate that works on expressions that could contain any C
 type. Because \lstinline|data_at| specifies the behavior of a program
@@ -2357,16 +2422,18 @@ typed functions. We are able to avoid this restriction, however,
 because we know that \lstinline|reptype| will always be applied to a C
 type that comes from a \emph{real} program. C types from real programs
 are always made completely from constructors with no Coq variables or
-opaque symbols.  That means that the function application will always
-terminate and result in a constant. The \lstinline|data_at| function
-applied \lstinline|reptype| fully evaluated on an argument is no
-longer a dependently typed function so it can be reified. The tricky
-part is that we can't use \lstinline|reptype| as the type of the
-reified function because the reified function needs to have reified
-types. So we define a function \lstinline|reptyp| (no e) with the same
-implementation as \lstinline|reptype| except for every Coq type
-returned in \lstinline|reptype| is exchanged for a reified type in
-\lstinline|reptyp|. Here are examples from both functions to illustrate:
+opaque symbols.  When tau is a ground term, then (reptype tau) can be
+computed to a concrete Coq type before reification. The
+\lstinline|data_at| function applied \lstinline|reptype| fully
+evaluated on an argument is no longer a dependently typed function so
+it can be reified. The tricky part is that we can't use
+\lstinline|reptype| as the type of the reified function because the
+reified function needs to have reified types. So we define a function
+\lstinline|reptyp| (no e) with the same implementation as
+\lstinline|reptype| except for every Coq type returned in
+\lstinline|reptype| is exchanged for a reified type in
+\lstinline|reptyp|. Here are examples from both functions to
+illustrate:
 
 \begin{lstlisting}
 Fixpoint reptyp (ty: type) : typ :=
@@ -2391,18 +2458,20 @@ match s with
 ... end
 \end{lstlisting}
 
-But then to define the denotation function we need a proof:
+But then to define the denotation function we need a definition:
 
 \begin{lstlisting}
 Definition typD_reptyp_reptype: forall t, typD  (reptyp t) = reptype t.
 \end{lstlisting}
 
+We left out the body of the definition because it is built by Coq
+tactics to deal with the dependent types involved.
 In order to convince the denotation function that the denotation
 \lstinline|fdata_at| applied to the reified type obtained by
 \lstinline|reptyp| will match the type obtained by \lstinline|reptype|
 in the implementation of \lstinline|data_at|. This is a significant
 amount of work to be put into reifying a dependently typed
-function. It doesn't work in the general case either; This technique
+function. It doesn't work in the general case either; this technique
 only works if you are sure that the dependent type will compute away
 when the function is applied to some number of its first
 arguments. For the foreseeable future of VST, this dependent typing
@@ -2411,7 +2480,7 @@ use in some other projects with more difficult dependent types.
 
 \section{Reified Tactics}
 
-A Mirror Core tactic, called an \emph{Rtac} is a Gallina program that transforms
+A Mirror Core tactic, called an \emph{Rtac}, is a Gallina program that transforms
 a reified proof state into a new reified proof state. To be used as a
 tactic, these programs must be proved sound with respect to the Coq
 implication. That is for tactic \lstinline|tac| (greatly simplified):
@@ -2423,10 +2492,10 @@ goalD reified_state -> goalD (tac reified_state)
 \end{lstlisting}
 
 Where \lstinline|goalD| is a denotation function for reified proof
-goals. This presentation is simplified by leaving out the variables
+goals. We have simplified this presentation by leaving out the variables
 and unification variables that might be created or instantiated by the
-execution of the tactic. This leads to a significant increase in the
-complexity of the statement, but the basic meaning is still the same.
+execution of the tactic. These variables significantly increase the
+complexity of \lstinline|rtac_sound|, but the meaning is approximately the same.
 
 Mirror Core provides a number of tactics that are already proved
 sound, assuming the arguments they are applied to are also sound.  The
@@ -2468,28 +2537,54 @@ creating a tactic that will apply to a triple with a single statement:
 \begin{lstlisting}
 Definition APPLY_SKIP :=  (APPLY typ func  skip_lemma).
 \end{lstlisting}
-
-Where \lstinline|skip_lemma| is the automatic reification of the same
-skip lemma used elsewhere in VST. Other lemmas are more
-complicated. For example the assignment lemma that we reify is:
+where \lstinline|skip_lemma| is the automatic reification of the 
+skip lemma used elsewhere in VST:
 
 \begin{lstlisting}
-Lemma semax_set_localD:
-    forall temp var ret gt 
-      id (e: Clight.expr) ty gs P T1 T2 R Post v,
+Axiom semax_skip:
   forall {Espec: OracleKind},
+   forall Delta P, @semax Espec Delta P Sskip (normal_ret_assert P).
+\end{lstlisting}
+
+ Other lemmas are more
+complicated. For example the assignment lemma that we reify is:
+
+\begin{lstlisting}[numbers=left]
+Lemma semax_set_localD:
+  forall temp var ret gt 
+         id (e: Clight.expr) ty gs P T1 T2 R Post v,
+   forall {Espec: OracleKind},
       typeof_temp (mk_tycontext temp var ret gt gs) id = Some ty -> 
       is_neutral_cast (implicit_deref (typeof e)) ty = true ->
       msubst_eval_LR T1 T2 e RRRR = Some v ->
       tc_expr_b_norho (mk_tycontext temp var ret gt gs) e = true ->
       assertD P (localD (PTree.set id v T1) T2) R = Post ->
-      semax (mk_tycontext temp var ret gt gs) (|> (assertD P (localD T1 T2) R))
-        (Sset id e)
-          (normal_ret_assert Post).
-Proof.
+      semax (mk_tycontext temp var ret gt gs) 
+            (|> (assertD P (localD T1 T2) R))
+            (Sset id e)
+            (normal_ret_assert Post).
 \end{lstlisting}
 
-To apply this automatically, first the conclusion of the (reified)
+The core of this rule is the standard Hoare assignment rule
+$\triple{P}{id:=e}{\exists v, x=e[v/id] \&\& P[v/id]}$. We have added side
+conditions to make the rule sound for C and optimized the rule for
+canonical form by removing the existential and symbolically evaluating
+$e$ (Section \ref{subst_canon}). Now we briefly discuss each line:
+
+\begin{itemize}
+\item Line 5: There is a type \lstinline|ty| for \lstinline|id| in the type context
+\item Line 6: The type of the expression \lstinline|e| is compatible
+  with the type \lstinline|ty|
+\item Line 7: \lstinline|e| symbolically evaluates in the precondition
+  to \lstinline|v| (see Section \ref{subst_canon})
+\item Line 8: \lstinline|e| type checks (See Chapter
+  \ref{ch:typechecking})
+\item Line 9: This is simply the postcondition. It is in a separate
+  equality as a side condition due to a limitation with Mirror Core's
+  variable unification
+\end{itemize}
+
+To apply the reified lemma automatically, first the conclusion of the (reified)
 lemma must match the proof goal, then we must solve each of the
 subgoals that remain from the application. That means we must create
 Mirror Core tactics that can solve each of the goals that will
@@ -2509,16 +2604,29 @@ the lemma as discussed in section \ref{sub:dependent}. %TODO: actually discuss
                                 %this in that section
 First we do the application of the lemma with \lstinline|EAPPLY| and
 then we attempt to apply a number of tactics in order, to deal with
-the reified subgoals that result from the application. Although we
-know exactly which tactic is used to solve which subgoal, Mirror Core
-does not currently have a tactic to allow for applications of tactics
-to specific subgoals so we use the \lstinline|FIRST| tactic
+the reified subgoals that result from the application. In this case,
+the subgoals correspond to the hypothesis of
+\lstinline|semax_set_localD|. We list the tactic that applies to the
+subgoal on each line and then discuss how the tactics work.
+
+\begin{itemize}
+\item Line 5: \lstinline|REFLEXIVITY_OP_CTYPE|
+\item Line 6: \lstinline|REFLEXIVITY_BOOL|
+\item Line 7: \lstinline|REFLEXIVITY_MSUBST|
+\item Line 8: \lstinline|REFLEXIVITY_BOOL|
+\item Line 9: \lstinline|REFLEXIVITY|
+\end{itemize}
+
+\lstinline|AFTER_SET_LOAD| cleans up the single remaining subgoal.
+Although we know exactly which tactic is used to solve which subgoal,
+Mirror Core does not currently have a tactic to allow for applications
+of tactics to specific subgoals so we use the \lstinline|FIRST| tactic
 instead. Because most of the tactics start with a basic syntactic
 match to check that they are being called on a subgoal they can
 operate on, we don't expect that this is a significant performance
 problem.
 
-All of the tactics of the form \lstinline|REFLEXIVITY_<type>| are
+\lstinline|REFLEXIVITY_OP_CTYPE| and \lstinline|REFLEXIVITY_BOOL| are
 actually monomorphizations of a single tactic named
 \lstinline|REFLEXIVITY_DENOTE|:
 
@@ -2537,12 +2645,12 @@ end).
 \end{lstlisting}
 
 The arguments to the tactic are \lstinline|rtype|, or the type of the equality we are
-performing reflexivity on, as well as an equality function over
-\lstinline|rtype| and a correctness proof for that function. The final
-argument is the table of uninterpreted functions that is generated by reification.
+performing reflexivity on, as well as an equality function \lstinline|H| over
+\lstinline|rtype| and a correctness proof \lstinline|H0| for that function. The final
+argument \lstinline|tbl| is the table of uninterpreted functions that is generated by reification.
  The
 tactic works by first checking that it is being applied to an
-equality, and extracting the reified expressions on each side of the
+equality, and extracting the reified expressions (\lstinline|l|, \lstinline|r|) on each side of the
 equality. Then it simply takes the denotation of these expressions and
 runs the provided equality function on the denotations. Then when we
 want a tactic specialized to a particular type we just apply it to its
@@ -2554,7 +2662,8 @@ Definition REFLEXIVITY_BOOL := REFLEXIVITY_DENOTE tybool.
 \end{lstlisting}
 
 This tactic is very useful and simple, so why is it not provided by
-Mirror Core? The answer is that it is also unsafe. Taking the
+Mirror Core? The answer is that it is also unsafe in terms of
+computation time. Taking the
 denotation of an expression within a function is only a good idea when
 the expression is guaranteed to simplify to a small term. If it
 contains Coq variables, the resulting term could easily be large
@@ -2593,7 +2702,7 @@ end.
 It extracts the left and right argument, and then runs Mirror Core's
 unification function, \lstinline|exprUnify|. Returning
 \lstinline|Solved| with the new subst \lstinline|su| tells Mirror Core
-what unification variables now map to once the tactic is completed.
+what unification variables now map to, once the tactic is completed.
 We generally use this for subgoals of the form 
 
 \begin{lstlisting}
@@ -2612,11 +2721,13 @@ reflective tactic.
 
 \subsection{Modular Reflection}
 
-Before presenting the reflective framework we presented both the
-typechecker, and a canonical form for assertions which allows us to do
-substitutions computationally.  Both our techniques and the reflective
-framework are reflective.  They use proved-sound Coq functions to make
-progress in a proof. This section discusses how these techniques
+We have previously discussed the typechecker (Chapter
+\ref{ch:typechecking}), and a canonical form for assertions (Chapter
+\ref{ch:canonical}) which allows us to do substitutions
+computationally.  Both of these techniques are computational, in that
+the proof proceeds by $\beta$-reduction instead of by the application of
+inference rules and rewriting.  The MirrorCore framework is also
+computational. This section discusses how these techniques
 interact. There is no interesting interaction between the substitution
 and the typechecker because they occur in different places. When we
 try to apply a reflective framework to a logic that uses these
@@ -2627,9 +2738,10 @@ they are avoidable in a differently designed reflective framework.
 There are two problems that can arise when attempting modular reflection:
 
 \begin{itemize}
-\item A function that returns Prop or Type must return a reified
+\item A function that returns Prop or Type must (in it's reified version) return a reified
   result if we wish to reason about the result.
-\item A function that might operate on Coq variables must take reified
+\item A function that might operate on Coq variables must (in it's
+  reified version) take reified
   expressions as arguments and will likely return a reified result.
 \end{itemize}
 
@@ -2639,13 +2751,13 @@ functions that we use fall into this category.
 
 An example of a function with only the first problem is the
 \lstinline|reptype| function discussed in section
-\ref{sec:dependent}. We need to make use of the \lstinline|reptype|
+\ref{sub:dependent}. We need to make use of the \lstinline|reptype|
 function to compute the type signature of \lstinline|data_at| but if we
 compute to \lstinline|Type|, Mirror Core will be unable to use the
-result of our computation. Instead we compute to reified type or
-\lstinline|typ|, which can be examined and compared for equality in
+result of our computation. Instead we compute to reified type (or
+\lstinline|typ|), which can be examined and compared for equality in
 Gallina functions. Another option is to convert a function that
-returns prop into a function that returns bool such that
+returns \lstinline|Prop| into a function that returns \lstinline|bool| such that
 
 \begin{lstlisting}
 func_bool args = true -> func args
@@ -2653,37 +2765,68 @@ func_bool args = true -> func args
 
 If the above lemma is satisfied, a new lemma can be created that uses
 \lstinline|func_bool| in place of \lstinline|func|. This new lemma
-should be trivially provable from the old lemma using the function
+should be trivially provable from the old lemma using the lemma
 above. The function \lstinline|func_bool| will now always return a
 constructor, so it can be used fully modularly. The cost here is that
-there is no way to return information to the user if the function is
-unsure. Whenever the function is unsure, it must return false, in
-which case the lemma won't apply. 
+if func would have returned a new \lstinline|Prop| to for the user to
+solve, \lstinline|func_bool| will be forced to simply return \lstinline|false|.
 
 The other issue is functions whose inputs might contain Coq
 variables. An example of where we run into this is the
 \lstinline|PTree.set| and \lstinline|PTree.get| operations that are in
-the postcondition of our assignment rules. These functions can be
-computed on their own, even if they are given a \lstinline|PTree| with
-a coq variable in it as an argument. The problem is that there is no
-way to represent any datastructure that contains a coq variable as a
-constant. This is because there is no way to computationally compare
-two Coq variables for equality. In order to computationally check
-equality over Coq variables, they must first be reified.  Reification
-is designed so that if it sees the same variable twice, it will use
-the same constructor to represent both instances. The constructors can
-be computationally compared, so variables can be compared in reified
-syntax.  We will need to do comparisons on the variables in the local
-assertion almost any time we solve an entailment, so we will need to
-reify the variables.
+the postcondition of our assignment rules. A \lstinline|PTree| is a
+computational finite map over identifiers. It is a trie over binary
+integers with functions \lstinline|get|, \lstinline|set|, and
+\lstinline|remove|. We use these trees in our type context (Section
+\ref{sec:context}) to map identifiers to static types, and our
+canonical form (Section \ref{sec:cform}) to map identifiers to
+symbolic values. This is fully computational, we can perform repeated
+applications of the lemma:
+
+\begin{lstlisting}
+Axiom semax_PTree_set: $~~$forall $\Delta$ id P T1 T2 R $e$ v,
+  msubst_eval_expr T1 T2 $e$ = Some v ->
+  semax $\Delta$
+    (|> local (tc_expr $\Delta$ e) && local (tc_temp_id id (typeof e) $\Delta$ e) 
+            && (assertD P (localD T1 T2) R))
+    (Sset id $e$)
+    (normal_ret_assert (assertD P (localD (PTree.set id v T1) T2) R)).
+\end{lstlisting}
+
+which introduces a \lstinline|PTree.set| into each postcondition,
+while \lstinline|msubst_eval_expr| does lookups from
+\lstinline|T1|. This can be done with only $\beta$-reduction and no
+rewriting, even though it is likely that \lstinline|T1| will contain
+Coq variables. We expect it to contain Coq variables because it is a
+symbolic environment. Any program that takes arguments should have at
+least one Coq variable in \lstinline|T1|.
+
+The problem is that there is no way to represent any data structure
+that contains a Coq variable as a constant. This is because there is
+no way to computationally compare two Coq variables for equality. In
+order to computationally check equality over Coq variables, they must
+first be reified.  Reification is designed so that if it sees the same
+variable twice, it will use the same constructor to represent both
+instances. The constructors can be computationally compared, so
+variables can be compared in reified syntax.  We will need to do
+comparisons on the variables in the local assertion almost any time we
+solve an entailment, so we will need to reify the variables.
 
 What that means is that we must rewrite \lstinline|PTree.set| and
 \lstinline|PTree.get| to operate on fully reified PTrees. This can be
-difficult because of the size of the reified syntax. One way to
-mitigate the complexity of the code is to create a function that
-matches a reified expression as a tree:
+difficult because of the size of the definition of the reified syntax
+(particularly \lstinline|func| discussed in section
+\ref{sec:reification}. 
 
-\begin{minted}{coq}
+For example if we have a tree that consists of just a leaf of type val
+\lstinline|@leaf val|, the equivalent reified tree would be
+\lstinline|Inj (inr (Data (fleaf val)))|. It is inconvenient to type
+this large match expression every time we want to match a tree with
+leaf. Instead we can define \lstinline|as_tree|.
+
+
+
+\begin{lstlisting}
 Definition as_tree (e : expr typ func) : option
   ((typ * expr typ func * expr typ func * expr typ func) + typ) := 
 match e with
@@ -2693,10 +2836,41 @@ match e with
     Some (inr t)
   | _ => None
 end.
-\end{minted}
+\end{lstlisting}
+
+and instead of 
+
+\begin{lstlisting}
+match t with
+| (Inj (inr (Data (fleaf t)))) => true
+...
+\end{lstlisting}
+
+we can now write
+
+\begin{lstlisting}
+match (as_tree t) with
+| Some (inr _) => true
+...
+\end{lstlisting}
 
 This allows the function that operates over reified expressions to look very
-similar to original expression, and also simplifies the proof. The function
+similar to original expression, and also simplifies the proof. It
+requires a lemma, however, to discover what the tree was if we know
+the result of \lstinline|as_tree|:
+
+\begin{lstlisting}
+Lemma as_tree_r : forall e t,
+as_tree e = Some (inr t) ->
+e = (Inj (inr (Data (fleaf t)))).
+\end{lstlisting}
+
+Checking the proof of this lemma with \lstinline|Qed| takes
+surprisingly long. It can take 2 or more minutes on a modern
+laptop. Again, this is because of the size of the syntax definition
+and the number of cases that must be checked.
+
+The function
 and the proof will now have 3 cases. The first have the same behavior (only reified)
 as the \lstinline|leaf| and \lstinline|node| cases of the original function. The third
 case is the case where \lstinline|as_tree| returns \lstinline|None|. This doesn't
@@ -2722,16 +2896,20 @@ end.
 
 This is a complete function, meaning we can prove the following lemma:
 
-\begin{lstlisting}
+\begin{lstlisting}[numbers=left]
 Lemma get_reif_eq2 :
 forall typ i tr tus tvs val,
 exprD' tus tvs (typtree typ) tr = Some val ->
 exprD' tus tvs (tyoption typ) (App (Inj (inr (Data (fget typ i)))) tr)  =
 exprD' tus tvs (tyoption typ) (get_reif i tr typ) .
 \end{lstlisting}
-
-If we weren't interested in having a complete function we could
-instead write \lstinline|get_reif|:
+This means that if \lstinline|(tr : expr)| has a valid denotation as a
+PTree (line 3),
+the reified application of \lstinline|PTree.get| to \lstinline|tr| (line 4) is equal to
+the application of the reified get function (\lstinline|get_reif|) to
+\lstinline|tr| (line 5).
+If we didn't require a complete function we could
+instead write \lstinline|get_reif|, which is easier to prove correct:
 
 \begin{lstlisting}
 Fixpoint get_reif (i : positive) (m : expr typ func) ty :  option (expr typ func) :=
@@ -3133,7 +3311,7 @@ The key to making proof by reflection efficient is the use of the
 a bytecode interpreter. The \lstinline|vm_compute| tactic is the
 fastest way to do evaluation ($\beta\eta\delta$-normalization) in Coq
 8.4; we expect the forthcoming \lstinline{native_compute} of Coq 8.5
-will improve \emph{all} the results in this paper even more.  The use
+will improve \emph{all} the results in this thesis even more.  The use
 of \lstinline|vm_compute| can do more harm than good in the wrong
 situations. Calling it on subgoals with opaque variables can stop
 functions from simplifying. If this happens deep in a stack of
@@ -3221,15 +3399,6 @@ contain huge mathematical expressions (resulting from macro-expansion
 in the C source code). The assertions in that example are large, with
 many local-variable and spatial conjuncts.
 
-Our computational theory of nested records yields a significant
-performance improvement.  Our \lstinline{data_at} benchmark verifies a
-sequence of 4 loads and 4 stores on a data structure represented by 8
-spatial conjuncts, taking 63 seconds in Ltac.  Using
-\lstinline{data_at}, with just one conjunct, verification takes 15
-seconds in Ltac, a factor of 4 improvement.  We don't expect to see
-the same speedup in Rtac, which in general is slower to be affected by
-changes in precondition size.
-
 Unfortunately, after Rtac has efficiently computed a proof, Coq's
 \lstinline|Qed| blows up, taking minutes in some cases.  Qed blowups
 tend to occur when Coq cannot find an efficient $\beta\eta$-conversion
@@ -3240,19 +3409,6 @@ Qed times; the Ltac Qed times are larger than the Rtac Qed times, but
 both are terrible (e.g., 815 and 615 seconds, respectively, for the
 SHA loop-body example).
 
-While this is frustrating, as Coq continues to mature, even if Qed
-time is slow, it won't cause too much frustration to the user. This is
-because starting with Coq 8.5, proofs can be built and checked
-asynchronously, allowing their statements to be used farther down in a
-file while they build. A Qed time of a few minutes is inconsequential
-as long as the user doesn't need to wait for it to continue proofs,
-even proofs using the not-yet-checked proof. Furthermore, Coq 8.5 will
-allow for Coq .v files to be compiled without checking proofs, making
-them very quickly importable. Later it is possible to replace the
-unchecked object files with object files. This means that libraries
-that are slow to build can be built and usable rapidly, and then the
-actual work of checking the proofs can be done in the background at
-the user's convenience.
 
 \chapter{Conclusion}
 
