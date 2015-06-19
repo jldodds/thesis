@@ -13,7 +13,6 @@
 \usepackage{lstlangcoq}
 \usepackage{caption}
 \usepackage{stmaryrd}
-\usepackage{minted}
 \usepackage{placeins}
 \renewcommand{\lstlistingname}{Figure}
 \input{macros}
@@ -27,7 +26,36 @@
 \author{Josiah Dodds}
 \adviser{Andrew Appel}
 \title{Computation Improves Interactive Symbolic Execution}
-\abstract{The abstract goes here.}
+\abstract{
+We are surrounded by more and more critical software every day. This
+is the software that we trust with our lives and happiness; software
+whose failure comes with an extraordinary cost. Much of this software
+is written in C, a common language to use when performance is
+critical. Unfortunately, the C programming language is less convenient
+for writing \emph{correct} programs. It contains a number of pitfalls
+that make it difficult to write correct programs, and a number of
+these pitfalls also make it difficult to show that an existing program
+is correct. 
+
+Verifiable C is an expressive Hoare logic (higher-order
+impredicative concurrent separation logic) for proving functional
+correctness of C programs.  The program logic is foundational---it
+is proved sound in Coq w.r.t. the operational semantics of CompCert
+Clight.  Users apply the program logic to C programs using
+semiautomated tactics in Coq, but
+these tactics are very slow.
+
+\qquad This thesis shows how to make an efficient (yet still
+foundational) symbolic executor based on this separation logic by
+using computational reflection in several different ways.  Our
+execution engine is able to interact gracefully with the user by
+reflecting application-specific proof goals back to the user for
+interactive proof---necessary in functional correctness proofs where
+there is almost always domain-specific reasoning to be done.  We use
+our ``mostly sound'' type system, computationally efficient finite-map
+data structures, and the MirrorCore framework for computationally
+reflected logics.  Measurements show a 40$\times$
+performance improvement.}
 \acknowledgements{Thank you very much.}
 \dedication{To myself.}
 
@@ -216,14 +244,14 @@ tactics can still make progress on the proof.
 \chapter{Computation in Coq}
 \label{ch:computation}
 The Coq proof assistant has a built in functional programming language
-called Gallina with the ability to match inductive data-structures. The type
-boolean, for example can be defined:
+called Gallina with the ability to define and match inductive
+data-structures. The type boolean, for example can be defined:
 
-\begin{minted}{coq}
+\begin{lstlisting}
 Inductive boolean :=
 | true
 | false.
-\end{minted}
+\end{lstlisting}
 
 So \lstinline|boolean| is a type that can be constructed by either
 \lstinline|true| or \lstinline|false| and when given a
@@ -235,19 +263,19 @@ inductively defined type in Coq, so it can't be matched
 against. Instead the definitions of \lstinline|True| and \lstinline|False|
 are
 
-\begin{minted}{coq}
+\begin{lstlisting}
 Inductive True : Prop := I : True.
-\end{minted}
-\begin{minted}{coq}
+\end{lstlisting}
+\begin{lstlisting}
 Inductive False : Prop.
-\end{minted}
+\end{lstlisting}
 
-\noindent along with an infinity of other Propositions, such as
-$\forall x:Z, x>5$.  Even though (one might think) this is false, it is not
-the same proposition as False.
+\noindent along with an infinity of other propositions, such as
+$\forall x:Z, x>5$.  Even though (one might think) this is False, it is not
+the same proposition.
 
 \noindent 
-Gallina programs cannot pattern-match over Propositions; they can
+Gallina programs cannot pattern-match over propositions; they can
 compute only over inductive data structures, and Prop is not
 inductive. That doesn't mean that it is impossible to reason about
 things of type \lstinline|Prop| in Coq. Instead of using Gallina to
@@ -289,28 +317,38 @@ Shallow and deep embeddings have tradeoffs in two areas:
 \end{enumerate}
 
 A shallow embedding will naturally take advantage of Coq's proof
-automation. Ltac can be used to write decision procedures about the
-logic without requiring soundness proofs for those procedures. A deep
-embedding, however, will be much harder to interact with. To have
-meaning as a proof goal, a deep embedding will need to be wrapped in
-its denotation function. Then every operation on the deeply embedded
-assertion must be proved sound with respect to the denotation
-function. Take Coq's rewrite tactic as an example. In this tactic if
-we have a lemma about an equality:
+automation. A language for creating and combining tactics called Ltac
+can be used to write decision procedures about the logic without
+requiring soundness proofs for those procedures. A deep embedding,
+however, will be much harder to interact with. To have meaning as a
+proof goal, a deep embedding will need to be wrapped in its denotation
+function. Then every operation on the deeply embedded assertion must
+be proved sound with respect to the denotation function. Take Coq's
+rewrite tactic as an example. In this tactic if we wish to write a
+symmetry lemma about an equality named \lstinline|add_symm|, we use
+the \lstinline|Lemma| keyword and give the type of
+\lstinline|add_sym|, denoted by \lstinline|( : )| :
 
-\begin{minted}{coq}
-Lemma add_symm : forall a b, a + b = b + a
-\end{minted}
+\begin{lstlisting}
+Lemma add_symm : forall (a b : nat), a + b = b + a.
+\end{lstlisting}
+\noindent nat in Coq is the inductively defined natural numbers.
 
-and we wish to prove a goal 
+If we are able to give a definition for \lstinline|add_symm| with
+\lstinline|forall a b, a + b = b + a|, that is a proof of the
+fact. Because there are generally difficult dependent types involved
+in constructing the proof term correctly, we use tactics to manipulate
+a proof state until we have successfully created a proof object. 
 
-\begin{minted}{coq}
+If we wish to use the tactic we proved to help solve another goal
+
+\begin{lstlisting}
 a : nat
 b : nat
 c : nat
 ======================
 a + (b + c) = a + (c + b) 
-\end{minted}
+\end{lstlisting}
 
 we can use the tactic \lstinline|rewrite (add_sym b c); reflexivity|
 to transform the left side to match the right side, and then tell Coq
@@ -319,9 +357,10 @@ equal. We supply the arguments \lstinline|b| and \lstinline|c| to the
 tactic because it is ambiguous where to rewrite the lemma, and Coq
 might guess wrong unless we tell it.
 
-Now we can create a deep embedding for nat, addition, and equality
+Now we can create a deep embedding, along with a denotation function
+for nat, addition, and equality
 
-\begin{minted}{coq}
+\begin{lstlisting}
 Inductive expr' :=
 | num : nat -> expr
 | add : expr -> expr -> expr.
@@ -339,31 +378,33 @@ Definition expr_denote e :=
 match e with
 | eq e1 e2 => expr'_denote e1 = expr'_denote e2
 end.
-\end{minted} 
+\end{lstlisting} 
 
 This syntax mirrors the syntax of a Coq goal, it means the same thing
-but we can compute on it. When we apply the denotation function to the
-syntax, we say that the goal has been reflected. The process of
+but we can compute on it inside of a Gallina program. When we apply
+the denotation function to the syntax and get a \lstinline|Prop| back,
+we say that the goal has been reflected. The process of
 \emph{computational reflection} mirrors a shallow embedding with a
 deep embedding, does work on the deep embedding, and reflects the
-result back to a shallow embedding. To perfom the work, we can write a
-symmetry lemma:
+result back to a shallow embedding. To perform the work, we can write a
+new symmetry lemma, this time on the denotation of the deep embedding:
 
-\begin{minted}{coq}
+\begin{lstlisting}
 Lemma add_sym' : forall a b, 
 expr'_denote (add a b) = expr'_denote (add b a)
-\end{minted}
+\end{lstlisting}
 
-While this isn't too hard to prove, it also doesn't end up being too
-useful in proving our goal:
+This isn't useful in proving the \emph{reification} (deep embedding
+that is equivalent to a shallow embedding---making the goal ``real'')
+of our earlier goal though:
 
-\begin{minted}{coq}
+\begin{lstlisting}
 a : expr
 b : expr
 c : expr
 ======================
 expr_denote (eq (add a (add b c)) (add a (add c b)))  
-\end{minted}
+\end{lstlisting}
 
 The lemma we wrote doesn't match the syntax of what we need to prove
 so we can't use the rewrite tactic. We could unfold the definition of
@@ -374,7 +415,7 @@ rewrite and prove that function sound with respect to the denotation
 function (assuming we have an equality function on our expr, which
 isn't hard to write):
 
-\begin{minted}{coq}
+\begin{lstlisting}
 Fixpoint symmetry' e e1 e2 := 
 match e with
 | add e1' e2' => if (e1 == e1' && e2 = e2') 
@@ -393,17 +434,17 @@ Lemma symmetry_func_sound :
 forall e1 e2 e,
 expr_denote (e) = expr_denote (symmetry e e1 e2)
 ...
-\end{minted}
+\end{lstlisting}
 
 Now we can rewrite by \lstinline|(symmetry_func_sound b c)| giving us:
 
-\begin{minted}{coq}
+\begin{lstlisting}
 a : expr
 b : expr
 c : expr
 ======================
 expr_denote (symmetry (eq (add a (add b c)) (add a (add c b))))  
-\end{minted}
+\end{lstlisting}
 
 and simplify. We simplify by using Coq's \lstinline|simpl| tactic,
 which performs $\beta\iota$ reduction. The \lstinline|simpl| tactic uses
@@ -412,23 +453,23 @@ easily readable by a proof writer. In this case, \lstinline|simpl|
 will (unseen to the user) first unfold and reduce the symmetry
 definition:
 
-\begin{minted}{coq}
+\begin{lstlisting}
 a : expr
 b : expr
 c : expr
 ======================
 expr_denote ((eq (add a (add c b)) (add a (add c b))))  
-\end{minted}
+\end{lstlisting}
 
 \noindent and then the denotation function:
 
-\begin{minted}{coq}
+\begin{lstlisting}
 a : nat
 b : nat
 c : nat
 ======================
 a + (c + b) = a + (c + b) 
-\end{minted}
+\end{lstlisting}
 
 \noindent where the goal can be solved by reflexivity.
 
@@ -450,7 +491,8 @@ deeply-embedded statements grows.
 Another advantage to a deeply embedded logic is that Gallina programs
 can be compiled to byte-code using Coq's \lstinline|vm_compute|
 tactic, or even to machine code by way of OCaml in upcoming versions
-of Coq which allows it to be run significantly more efficiently.
+of Coq which allows it to be run significantly more efficiently, at
+the cost of adding a virtual machine to the trusted computing base.
 
 The technique of computational reflection in Coq aims to combine the
 interactivity of a shallow embedding with the efficiency of a deep
@@ -1638,21 +1680,21 @@ precondition or the expression being assigned into \lstinline|x|. To
 see why the substitution is necessary, the following example shows
 what happens if we don't have substitution:
 
-\begin{minted}{coq}
+\begin{lstlisting}
 {eval_id x = 3}
    x = 4;
 {eval_id x = 3 /\ eval_id x = 4}
-\end{minted}
+\end{lstlisting}
 
 For the triple above to hold, the program would need to infinite loop
 on the assignment to \lstinline|x|, which seems unlikely. Instead we
 do the substitution and get:
 
-\begin{minted}{coq}
+\begin{lstlisting}
 {eval_id x = 3}
    x = 4;
 {exists x_old, x_old = 3 /\ eval_id x = 4}
-\end{minted}
+\end{lstlisting}
 
 
 Although subst is a function, in practice it is never computed during
@@ -1671,10 +1713,10 @@ system has an autorewrite
 database that lets it push subst through
 functions that won't be affected by the substitution. For example
 
-\begin{minted}{coq}
+\begin{lstlisting}
 Lemma subst_sepcon: forall i v (P Q: environ->mpred),
   subst i v (P * Q) = (subst i v P * subst i v Q).
-\end{minted}
+\end{lstlisting}
 
 Fortunately, we don't need a lemma for every function that might
 appear in assertions. Lifted functions can't do anything with the
@@ -1698,12 +1740,12 @@ There is a situation when a substitution \lstinline|subst $x$ $v$ $P$| can
 be avoided completely. That is when $P$ is \emph{closed} with respect to 
 $x$, also a semantic notion:
 
-\begin{minted}{coq}
+\begin{lstlisting}
 Definition closed_wrt_vars {B} (S: ident -> Prop) (F: environ -> B) : Prop := 
   forall rho te',  
      (forall i, S i \/ Map.get (te_of rho) i = Map.get te' i) ->
      F rho = F (mkEnviron (ge_of rho) (ve_of rho) te').
-\end{minted}
+\end{lstlisting}
 
 Typically we instantiate \lstinline|S| with \lstinline|eq x| for some
 identifier \lstinline|x|.  What \lstinline|closed_wrt_vars| means, then, is that if
@@ -1800,11 +1842,11 @@ meaning we actually need to do a substitution, making sure to replace
 every reference to that variable. One of the axioms about PTrees
 (efficient computational maps from positive numbers) is:
 
-\begin{minted}{coq}
+\begin{lstlisting}
 Theorem PTree.gss
      : forall (A : Type) (i : positive) (x : A) (m : PTree.t A),
        PTree.get (PTree.set i x m) i = Some x
-\end{minted}
+\end{lstlisting}
 
 This means that if we update $x$ in some PTree, the old mapping of $x$
 will no longer exist, which is the exact definition we want from a
@@ -2007,7 +2049,8 @@ given C program.  The tactic was created with Malecha et al.'s s
 \emph{Mirror Core} framework \cite{malecha:thesis}.
 
 There are a number of operations that need to be implemented to create
-a complete reflective tactic: 
+a complete reflective tactic, for a more detailed view of the
+reflective tactic see \cite{malecha:thesis} section 4.4.1: 
 \begin{enumerate}
 \item a reification tactic to transform proof states into a
   syntax that can be computed on,
@@ -2021,9 +2064,59 @@ a complete reflective tactic:
   transformation
 \end{enumerate}
 
-We will discuss the implementation of each of these in Mirror Core,
-along with the interesting interactions between VST and
-the reflective framework.
+With these complete, we should be able to take the following goal
+(simplified for readability):
+
+\begin{lstlisting}
+___________
+semax $\Delta$ 
+  {PROP () LOCAL (_x = 2; _y = y) SEP (data_at _z 3)} 
+     w = 3;
+     y = 2 / y; 
+     x = *z;
+     if (y)
+     {
+       q = 0;
+     }
+     {
+       q = 1;
+     }
+  {POST}
+\end{lstlisting}
+
+and with the application of a single tactic, called
+\lstinline|rforward|, or reified forward quickly get two proof goals back:
+
+\begin{lstlisting}
+___________ 
+PROP () LOCAL (temp _x 2; temp _y y; temp w 3) SEP (data_at _z 3) |--
+y <> 0 
+\end{lstlisting}
+
+Which is the enatailment that must be solved to show that the
+expression \lstinline|y = 2 / y| evaluates to a value, and the
+triple that \lstinline|rforward| was unable to progress through:
+
+ 
+\begin{lstlisting}
+___________
+semax $\Delta'$ 
+  {PROP () LOCAL (_x = 3; _y = 2 / y; w = 3) SEP (data_at _z 3)} 
+     if (y)
+     {
+       q = 0;
+     }
+     {
+       q = 1;
+     }
+  {POST}
+\end{lstlisting}
+\noindent because currently \lstinline|rforward| can only progress
+through basic blocks.
+
+We will discuss the implementation of all of steps listed above, along
+with the interesting interactions between VST and the reflective
+framework.
 
 \section{Reification and Denotation}
 \label{sec:reification}
@@ -2295,6 +2388,9 @@ is extensible language of reified Mirror Core terms:
                             environment *)
 \end{lstlisting}
 
+For a thorough discussion of this \lstinline|expr|, along with its
+denotation function see see \cite{malecha:thesis} section 3.1
+
 The next rule demonstrates reifying a polymorphic equation. Of note is
 the type of the argument \lstinline|a|. It is 
 \lstinline|function reify_vst_typ| which means that it will take a Coq type and reify it
@@ -2480,9 +2576,10 @@ use in some other projects with more difficult dependent types.
 
 \section{Reified Tactics}
 
-A Mirror Core tactic, called an \emph{Rtac}, is a Gallina program that transforms
-a reified proof state into a new reified proof state. To be used as a
-tactic, these programs must be proved sound with respect to the Coq
+A Mirror Core tactic, called an \emph{Rtac} (Malecha chapter 6
+\cite{malecha:thesis}), is a Gallina program that transforms a reified
+proof state into a new reified proof state. To be used as a tactic,
+these programs must be proved sound with respect to the Coq
 implication. That is for tactic \lstinline|tac| (greatly simplified):
 
 \begin{lstlisting}
@@ -2591,12 +2688,15 @@ Mirror Core tactics that can solve each of the goals that will
 arise. The Mirror Core tactic application is:
 
 \begin{lstlisting}
-THEN (EAPPLY typ func (set_lemma temp var ret gt i e0 ty)
-     (TRY (FIRST [REFLEXIVITY_OP_CTYPE tbl;
-                  REFLEXIVITY_MSUBST tbl; 
-                  REFLEXIVITY_BOOL tbl;
-                  AFTER_SET_LOAD tbl;
-                  REFLEXIVITY tbl]))
+Definition FORWARD_SET 
+...
+  THEN (EAPPLY typ func (set_lemma temp var ret gt i e0 ty)
+       (TRY (FIRST [REFLEXIVITY_OP_CTYPE tbl;
+                    REFLEXIVITY_MSUBST tbl; 
+                    REFLEXIVITY_BOOL tbl;
+                    AFTER_SET_LOAD tbl;
+                    REFLEXIVITY tbl]))
+...
 \end{lstlisting}
 
 where the arguments to \lstinline|set_lemma| are constants provided to
@@ -2711,6 +2811,100 @@ We generally use this for subgoals of the form
 
 where the entire tactic unifies a single unification variable with an expression.
 
+Once we have defined the equivalent of \lstinline|FORWARD_SET| for
+each statement we are interested in stepping through, we can combine
+them in a single tactic we first present an idealized tactic, with a
+few details we added strictly for performance rules removed:
+
+\begin{lstlisting}
+Definition SYMEXE_STEP Struct_env
+: rtac typ (expr typ func)  :=
+  AT_GOAL
+    (fun c (sub : subst) (e : expr typ func) => 
+         match (get_arguments e) with
+         | (Some Delta, Some Pre, Some s) =>  
+           match compute_forward_rule s with
+           | Some ForwardSkip => APPLY_SKIP
+           | Some (ForwardSeq s1 s2) => EAPPLY_SEQ s1 s2 
+           | Some ForwardSet => FORWARD_SET Delta Pre s
+           | Some ForwardLoad => FORWARD_LOAD Struct_env Delta Pre s
+           | Some ForwardStore => FORWARD_STORE Struct_env Delta Pre s
+           | _ => FAIL
+           end
+         | _ => FAIL
+         end)
+\end{lstlisting}
+
+This function's type means that it is an Rtac (essentially a function
+from expr to expr) where the type it operates on is \lstinline|typ|
+and the expression type it operates on is \lstinline|expr| over our
+\lstinline|typ| and our \lstinline|func| (Section \ref{sec:reification}).
+
+The \lstinline|get_arguments| function extracts the type context,
+precondition, and statement constants from a reified triple. This
+tactic operates by examining the statement and choosing the correct
+Rtac to apply to the triple. 
+
+There is one new tactic here, \lstinline|AT_GOAL|, which is used much
+like \lstinline|match| in Ltac. It allows you to examine the goal in
+order to decide which tactic you would like to apply. As long as each
+of the tactics are sound regardless of what you found when you
+examined the goal, the entire \lstinline|AT_GOAL| tactic will be sound.
+
+The \lstinline|EAPPLY_SEQ| tactic is a tactic we defined to apply our
+reified sequence tactic. It is named \lstinline|EAPPLY| because it has
+the ability to create a unification variable if it has a quantified
+variable that isn't filled by application. In the case of the
+sequence lemma, this unification variable will be $P'$:
+
+\[
+\inference[semax\_seq]{\triple{P}c1{P'} ~~ \triple{P'}c2{Q}}
+{\triple{P}c1;c2{Q}}\]
+
+\noindent because $P'$ appears above the line but not below it, it
+can't be discovered simply by applying the rule. Instead we must prove
+that some $P'$ exists, which we can do by unifying the unification
+variable and (or while) discharging both subgoals. The other tactics
+are similar to \lstinline|FORWARD_SET|. They eapply a lemma, and then
+use the same tactics to discharge the resulting subgoals.
+
+This is the real tactic, with much of the middle ommitted:
+
+\begin{lstlisting}
+Definition SYMEXE_STEP Struct_env
+: rtac typ (expr typ func)  :=
+  THEN (INSTANTIATE typ func)
+  (THEN (AT_GOAL
+    ...) 
+    (@RTac.Minify.MINIFY typ (expr typ func) _)).
+\end{lstlisting}
+
+
+There are two tactics that we needed to include for performance
+reasons and both deal with the mapping from unification variables to
+optional values. These are carried around in Rtac inside of a
+computational map. If a unification variable \lstinline|n| maps to
+\lstinline|Some value|, that means that the variable has already been
+unified with \lstinline|value|, meaning that it can be substituted in
+for \lstinline|n| wherever \lstinline|n| occurs in the
+expression. This process is performed by the \lstinline|INSTANTIATE|
+tactic, and needs to be done before attempting to unify a lemma using
+\lstinline|APPLY| or \lstinline|EAPPLY|. If \lstinline|n| doesn't
+appear in the expression and it was created by Mirror Core, it can be
+deleted from the table using the \lstinline|MINIFY| tactic. This is an
+important operation, because a large number of unification variables
+are created and then instantly filled during each lemma
+application. Without cleaning up the datastructure, it can rapidly
+grow, hurting performance. Variables that were not created by Mirror
+Core can't be deleted because they exist in a Coq proof goal. Coq
+requires that all unification variables be instantiated for the proof
+to check because allowing uninstantiated variables would be unsound in
+the case that those variables have an uninhabited type. We initially
+omitted these tactics because they should be built into the operations
+of Mirror Core. Coq automatically performs both of these operations
+during Ltac applications, and it is unnecessary bookkeeping to require
+these tactics to be part of user tactics.
+
 These are the general purpose tactics we created to support our proof
 automation. The remaining tactics address a specific challenge that we
 came across. That challenge is managing the way that computation built
@@ -2816,7 +3010,7 @@ What that means is that we must rewrite \lstinline|PTree.set| and
 \lstinline|PTree.get| to operate on fully reified PTrees. This can be
 difficult because of the size of the definition of the reified syntax
 (particularly \lstinline|func| discussed in section
-\ref{sec:reification}. 
+\ref{sec:reification}). 
 
 For example if we have a tree that consists of just a leaf of type val
 \lstinline|@leaf val|, the equivalent reified tree would be
@@ -2936,15 +3130,14 @@ exprD' tus tvs (tyoption typ) (App (Inj (inr (Data (fget typ i)))) tr)
 \end{lstlisting}
 
 The key difference is that the second function is partial, meaning
-that it 
-fails when it runs into a PTree with a form that it doesn't expect. There is a
-fundamental difference in how the two functions can be used and the
-type of tactics they are built into. 
+that it fails when it runs into a PTree with a form that it doesn't
+expect. There is a fundamental difference in how the two functions can
+be used and the type of tactics they are built into.
 
 If we have the first function we can use a tactic that essentially
 does a rewrite, replacing any instance of \lstinline|fget| with
 \lstinline|get_reif|. Mirror Core provides a tactic to do this, called
-\lstinline|SIMPLIFY| which converts any function that maintains
+\lstinline|SIMPLIFY|, which converts any function that maintains
 semantic meaning into a tactic. Mirror Core provides a function that
 will replace any application of a reified function with another
 reified expression. If we use this to create a function that replaces
@@ -2991,55 +3184,40 @@ Malecha and Bengtson \cite{}, but I will discuss it here to give an
 understanding of the modifcations made to support our tactics, as well
 as the interesting relevant parts of the evaluation. 
 
-\begin{lstlisting}
+\begin{lstlisting}[numbers=left]
 Ltac run_rtac reify term_table tac_sound reduce :=
-start_timer "total"; start_timer "02 match_tactic";
   lazymatch type of tac_sound with
     | forall t, @rtac_sound _ _ _ _ _ _ (?tac _) =>
 	  let namee := fresh "e" in
 	  match goal with
 	    | |- ?P => 
-              stop_timer "02 match_tactic"; start_timer "03 reification";
 	      reify_aux reify term_table P namee;
-              stop_timer "03 reification";  start_timer "04 match type";
               let tbl := get_tbl in
 	      let t :=  constr:(Some typrop) in
 	      let goal := namee in
 	      match t with
 	        | Some ?t =>
 	          let goal_result := constr:(run_tac' (tac tbl) (GGoal namee)) in
-                  stop_timer"04 match type"; start_timer "05 vm_compute";
 	          let result := eval vm_compute in goal_result in
-                  stop_timer "05 vm_compute"; start_timer "06 match result";
 	          match result with
 	            | More_ ?s ?g =>
                       set (g' := g);
                       set (sv := s);
-                      stop_timer "06 match result"; start_timer "07 goalD";
                       let gd_prop := 
                           constr:(goalD_Prop tbl nil nil g') in
-                      stop_timer "07 goalD"; start_timer "08 reduce";
                       let gd' := 
                         reduce g' gd_prop in
-                      stop_timer "08 reduce"; start_timer "09 cut1";
-	              cut (gd');  [ stop_timer "09 cut1"; start_timer "10 change";
+	              cut (gd');  [ 
                           change (gd_prop -> 
                                   exprD_Prop tbl nil nil namee);
-
-                          stop_timer "10 change"; start_timer "11 cut2";
 	                  cut (goal_result = More_ sv g');
-                          [ stop_timer "11 cut2"; start_timer "12 exact"; 
-                            (*set (pf := *)
-                             exact_no_check
+                          [  exact_no_check
                                (@run_rtac_More tbl (tac tbl) 
                                  sv g' namee (tac_sound tbl))
-                           (*;
-                            exact pf*)
-                           | stop_timer "12 exact"; start_timer "13 VM_CAST"; 
-                             vm_cast_no_check 
+                           | vm_cast_no_check 
                                (@eq_refl _ (More_ sv g'))
                              ] 
-	                | stop_timer "13 VM_CAST"; clear (*g'*) sv ]
+	                | clear sv ]
 	            | Solved ?s =>
 	              exact_no_check (@run_rtac_Solved tbl (tac tbl) s namee (tac_sound tbl) 
 	                (@eq_refl (Result (CTop nil nil)) (Solved s) <: run_tac' (tac tbl) (GGoal goal) = Solved s))
@@ -3050,49 +3228,30 @@ start_timer "total"; start_timer "02 match_tactic";
 	      end
               end; try (clear namee; clear_tbl)
 	| _ => idtac tac_sound "is not a soundness theorem."
-  end; stop_timer "total".
+  end
 \end{lstlisting}
-
-
-The lines that say \lstinline|end_timer x; start_timer y;| are tactics
-from Braibant's \emph{timing} plugin that allows for timing individual
-parts of tactics, as opposed to the \lstinline|Time| command that
-comes with Coq. \lstinline|Time| is a command in Coq, so it can only
-be called at the top level. The \lstinline|Timing| plugin allows
-multiple timers to be run within tactics. If a timer is run multiple
-times, it will give the average and total times for each time it is
-stopped and started. This is the plugin we use for the evaluation in
-\ref{ch:evaluation}. The tactic prints timings in alphabetical order,
-so each name is preceded by a number to make sure they come out in
-the order of execution. We will refer to each section of the tactic by
-the name of its timer.
 
 Many choices in the creation of this tactic are made for the sake of
 efficiency, even at the cost of clarity. For example, we cut the
 solutions to subgoals and then use the
-\lstinline|exact_no_check| tactic where we would often use the apply
+\lstinline|exact_no_check| tactic where we would otherwise simply use the apply
 tactic and then solve subgoals individually. This is because
-\lstinline|exact_no_check| does no checks for correctness, it simply
+\lstinline|exact_no_check| does not typecheck or unify anything, it simply
 fills in the proof with the provided term, not checking that the term
 matches the proof goal. This means that \lstinline|exact_no_check| is
 an \emph{unsafe} tactic. It will always succeed when it is run, but
-when the proof is checked using \lstinline|Qed.|, the checking might
+when the proof is checked using \lstinline|Qed|, the checking might
 fail. This is in contrast to most of Coq's tactics, which do enough
 typechecking that we can be reasonably confident that if the tactic
 succeeds \lstinline|Qed| will also succeed. We are confident using
 this tactic because we know that we are giving it the exact term that
-will match the proof goal. This is because we have gotten the parts of
-the term directly from the proof goal, and constructed other parts of
-the term using tactics that do perform typechecking. The result of
-this is that although the \lstinline|rforward| tactic uses an unsafe
-tactic, it uses it in such a way that \lstinline|rforward| should not
-be considered unsafe. That is, a user can be reasonably confident that
-if \lstinline|rforward| succeeds, the \lstinline|Qed| will succeed as
+will match the proof goal. Therefore, although the \lstinline|rforward| tactic uses an unsafe
+tactic, it uses it in such a way that \lstinline|rforward| can be
+considered safe. If \lstinline|rforward| succeeds, the \lstinline|Qed| will succeed as
 well.
 
-
-The tactic here is not for performing symbolic execution on verifiable
-C programs, instead it is a Ltac for running any RTac that takes a
+The tactic here is not just for performing symbolic execution on verifiable
+C programs --- it is an Ltac for running any RTac that takes a
 reification table as an argument. This tactic applied to our symbolic
 execution RTac is an Ltac that performs fast symbolic execution of
 verifiable C
@@ -3102,57 +3261,65 @@ Ltac rforward := run_rtac reify_vst term_table (SYMEXE_sound 1000) cbv_denote.
 \end{lstlisting}
 
 The \lstinline|run_rtac| takes an rtac soundness proof as an
-argument. The first part of the tactic, ``match proof'', simply
+argument. The first part of the tactic (line 3), simply
 extracts the tactic from the soundness proof. The next step is to
-reify. The only thing to note here is that we pass the reification
+reify (line 7). The only thing to note here is that we pass the reification
 tactic the name that it should give the reified term once it has
 created it. It would be nice if we could do the same with the table
 name, but that is a feature that will appear in a future version of
-Mirror Core. Next we find the table by matching its type. Because this
+Mirror Core. Next we find the table by matching its type (line 8). Because this
 is a type that is created specifically for reification, it is
 unlikely that there will be more than the one created by reification. 
 
 The next step is to create the term that will be used to compute the
-result of symbolic execution. The function \lstinline|run_tac'| is a
-Gallina function that runs an RTac on a \emph{reified} goal. We put
+result of symbolic execution (line 13). The function \lstinline|run_tac'| is a
+Gallina function we defined that runs an RTac on a \emph{reified} goal. We put
 the reified term inside of the \lstinline|GGoal| constructor to create
 a complete reified goal, and apply \lstinline|run_rtac'| to the tactic
 and the reified goal.  This step only creates the term. It doesn't do
 any reduction. The reason we do this separately is that we will later
-need the term in both reduced and not reduced forms. 
+need the term in both reduced and unreduced forms. 
 
 The next step is simple, but very important. Here we call
-\lstinline|vm_compute| on the term we just created. This results in a
-reified term that is the result of running the RTac. It can be either
-\lstinline|Fail|, \lstinline|Solved s|, or \lstinline|More g| where
-\lstinline|(s : subst)| represents assignments to unification
-variables, and \lstinline|(g : goal)| is a reified goal that is
-implied by the original goal. If the result is \lstinline|Fail| the
-Ltac tactic does nothing. If it is \lstinline|Solved|, we apply a
-soundness lemma for RTac that says a goal is solved if an
-RTac is sound and produced a solved result. The soundness lemma also
-tells Coq how any existential variables that existed before the tactic was run
-were instantiated. The interesting part of applying the
-\lstinline|Solved| lemma is that we need to perform the computation of
-the tactic function using a vm cast ( \lstinline|<:| ). VM Cast is an
-operation that does the same thing as a normal cast \lstinline|( : )|,
-but it compiles to bytecode and uses a virtual machine, just like the
-\lstinline|vm_compute| tactic. In the solved case we use a less
-efficient but more readable tactic for illustration. It is not
-necessary to recompute the result of the tactic using the vm cast. We
-will discuss how to use \lstinline|vm_cast_no_check| later.
+\lstinline|vm_compute| on the term we just created (line 14). This
+results in a reified term that is the result of running the RTac. It
+can be either \lstinline|Fail|, \lstinline|Solved s|, or
+\lstinline|More g| where \lstinline|(s : subst)| represents
+assignments to unification variables, and \lstinline|(g : goal)| is a
+reified goal that is implied by the original goal. If the result is
+\lstinline|Fail| the Ltac tactic does nothing. If it is
+\lstinline|Solved|, we apply a soundness lemma for RTac that says a
+goal is solved if an RTac is sound and produced a solved result. The
+soundness lemma also tells Coq how any existential variables that
+existed before the tactic was run were instantiated. The interesting
+part of applying the \lstinline|Solved| lemma (line 37) is that we
+need to perform the computation of the tactic function using a vm cast
+( \lstinline|<:| ). VM Cast is an operation that does the same thing
+as a normal cast \lstinline|( : )|, but it compiles to bytecode and
+uses a virtual machine. In fact, a vm cast is added to the proof term
+every time that \lstinline|vm_compute| is run. In this case, vm cast
+is simply a way to automatically build a proof by
+\lstinline|vm_compute| (which is a tactic) and provide it as an
+argument to \lstinline|run_rtac_solved|. This is only part of the
+benefit though, the real benefit comes when we use
+\lstinline|vm_cast_no_check| which we discuss later. 
+In the solved case we use a less efficient but more readable tactic
+using \lstinline|( <: )| for illustration. It is less efficient than
+we want because the tactic needs to recompute the running of the
+tactic, which we already did on line 14.
 
- The most work remains to be done if the result is a
-\lstinline|More g|. In this case, we need to include the (possibly quite
-large) result in the application of the lemma, and simplify the
-denotation function to leave a result that is readable by the user. 
-The first step here is to create a goal denotation of the result
-\lstinline|g|. Then we use a tactic \lstinline|reduce| that was
+The most work remains to be done if the result is a 
+\lstinline|More g|.
+ In this case, we need to include the (possibly quite large) result
+of running the tactic in the application of the lemma, and simplify
+the denotation function to leave a result that is readable by the
+user.  The first step here is to create a goal denotation of the
+result \lstinline|g|. Then we use a tactic \lstinline|reduce| that was
 supplied to the tactic. This is generally a \lstinline|cbv| tactic
 with a whitelist, but it might want to do other sorts of cleanup as
 well. For example, in the future our reduce tactic will attempt to
 re-fold identifiers. Identifiers in CompCert are \lstinline|ident|s
-where 
+where
 
 \begin{lstlisting}
 Definition ident := positive
@@ -3217,8 +3384,12 @@ ________
 gd_prop reified_g' ->  exprD_Prop reified_g
 \end{lstlisting}
 
-Next we cut the result of running the RTac which we have already 
-computed and matched against and again get two subgoals:
+What this \lstinline|change| has done is to replace \lstinline|g'| with the
+reflection \lstinline|reified_g'|, and replace \lstinline|g| with the
+reflection of \lstinline|reified_g|.
+
+We have already run the RTac that relates \lstinline|reified_g'| to
+reified g, so we cut this to again get two subgoals:
 
 \begin{lstlisting}
 ________
@@ -3232,21 +3403,48 @@ goal_result = More_ sv g'
 
 The first goal now matches our soundness lemma exactly, but still
 needs the soundness proof for the tactic. We already have this in
-\lstinline|rforward| so we apply it using \lstinline|exact_no_check| 
-which does no checking and simply believes that the proof term provided
-matches the proof state.
+\lstinline|rforward| so we apply it using \lstinline|exact_no_check|
+(line 28) which installs it into the proof (without bothering to check
+that it has the right type, which of course it will).
 
 Similarly, to discharge the second goal, we use 
-\lstinline|vm_cast_no_check| which will insert a vm cast (\lstinline| <: |)
+\lstinline|vm_cast_no_check| (line 31) which will insert a vm cast (\lstinline| <: |)
 but again, not check that the cast is valid, or that it matches the proof
-goal. We know that it is valid because we have already done the computation
-during the execution of the tactic and matched the result, and
-we know that it matches the proof goal because we created both the
-goal and the proof of the goal.
+goal. This means that when we use \lstinline|vm_cast_no_check| we
+don't need to recompute the (possibly lengthy) tactic run that we
+already computed on line 14. Instead, we can insert a term that simply
+asserts that it needs to be computed by virtual machine when the proof
+is checked.
 
 This solves all of the subgoals but the reduced denotation of what
-remained when the RTac finished running, meaning that all the user
-of the tactic will ever see is the result. 
+remained when the RTac finished running --- that is the reflection of
+goal \lstinline|g| --- meaning that all the user
+of the tactic will ever see is this result. The reflection of the goal
+\lstinline|g| might also contain (or be exclusively made of)
+equalities representing unification variables that existed in
+\lstinline|g| and were instantiated during the execution of the
+tactic. So if we had a goal
+
+\begin{lstlisting}
+________
+f ?12 = 1 + 2
+\end{lstlisting}
+where \lstinline|?12| is a unification variable, essentially an
+existential variable where we assume we will find a variable and fill
+it in once we have done some work (unification) to discover its true
+value. If we used \lstinline|run_rtac| with a tactic that solves the goal, we
+would actually end up in the \lstinline|More| case, because the goal
+isn't solved unless there is a value given for \lstinline|?12| it is
+impossible for a Gallina program to do this instantiation, so as a
+result of running the reified tactic we will get a goal
+
+\begin{lstlisting}
+________
+?12 = 3
+\end{lstlisting}
+
+assuming $3$ is the value that the tactic discovered that
+\lstinline|?12| should be unified with.
 
 \section{Related work}
 Computational reflection in Coq has certainly been used before---it is
@@ -3262,7 +3460,7 @@ interact with a human. This makes the performance gains from
 extraction to Ocaml worthwhile. \emph{Verifiable C}, on the other
 hand, is not just a static analyzer, it's a fully expressive program
 logic in which users can write program invariants in higher-order
-logic (actually CiC); no prover for Verifiable C can hope to be
+logic (actually CiC). No prover for Verifiable C can hope to be
 complete, so there will always be a need for interaction.
 
 Verifiable C is not the first expressive foundational program logic:
@@ -3341,29 +3539,30 @@ Rtac as $n$ increases in Figure \ref{fig:chart}.
 \vspace{-4ex}
 \end{figure}
 
-Each data point is the average of 10 consecutive runs on a standard laptop. The
-amount of memory on the laptop is over 2 gigabytes, which is the
-maximum amount of memory that 32-bit Coq can use. Because it is very
-difficult to get 64-bit Coq on all platforms, we attempt to write
-tactics that can operate within the lower memory bounds.
+Each data point is the average of 10 consecutive runs on a modern
+laptop.  The timing information was obtained by Braibant's Timing
+plugin \cite{braibant:timing} The amount of memory on the laptop is
+over 2 gigabytes, which is the maximum amount of memory that 32-bit
+Coq can use. Because it is very difficult to get 64-bit Coq on all
+platforms, we attempt to write tactics that can operate within the
+lower memory bounds.
 
-Although this is a synthetic test, we consider
-it a lower bound on the performance increase we will see in the
-process of a real proof. This is because numerous other tests
-indicate that for non-addressed variable assignments the size of the
-precondition has the predominant effect on the run-time, not the
-contents. This follows from what we would expect. The computation that
-we need to do is almost all getting and setting from efficient tree
-maps where get and set take $\log(n)$ time where $n$ is the largest
-index that exists in the map. This is acceptable because we know that
-our program input will be compiled by CompCert, and CompCert always
-starts its variable indices with $1$, moving up sequentially. We can
-be confident that this will always be the case because CompCert makes
-use of PTrees. The remainder of the operations that RTac does are
-linear (or slower) unifications between lemmas and proof goals, as
-well as linear (or slower) rewrites by proved equalities. Repeated
-linear operations are what lead to the polynomial operation we observe in
-the chart above, not repeated $\log(n)$ gets and sets. 
+Although this is a synthetic test, we consider it a lower bound on the
+performance increase we will see in the process of a real proof. This
+is because numerous other tests indicate that for non-addressed
+variable assignments the size of the precondition has the predominant
+effect on the run-time, rather than the meaning of the
+precondition. This follows from what we would expect. The computation
+that we need to do in both real and synthetic cases is almost all
+getting and setting from efficient tree maps, where get and set take
+$\log(n)$ time (where $n$ is the largest index in the domain of the
+map). Our program input will be
+compiled by CompCert, and CompCert uses small indices. The remainder
+of the operations that RTac does are linear (or slower) unifications
+between lemmas and proof goals, as well as linear (or slower) rewrites
+by proved equalities. Repeated linear operations are what lead to the
+$n^{2.5}$ operation we observe in the chart above, not repeated
+$\log(n)$ gets and sets.
 
 The chart shows that there 
 is a speedup of (typically) 40$\times$ (e.g., running $n\! = \! 8$ consecutive
@@ -3403,11 +3602,10 @@ Unfortunately, after Rtac has efficiently computed a proof, Coq's
 \lstinline|Qed| blows up, taking minutes in some cases.  Qed blowups
 tend to occur when Coq cannot find an efficient $\beta\eta$-conversion
 sequence to prove an equality (even if the tactic script demonstrated
-one).  In the next section we discuss how to fix this.  Performance
-measurements in this section (for both Ltac and Rtac) do not include
-Qed times; the Ltac Qed times are larger than the Rtac Qed times, but
-both are terrible (e.g., 815 and 615 seconds, respectively, for the
-SHA loop-body example).
+one).  Performance measurements in this section (for both Ltac and
+Rtac) do not include Qed times; the Ltac Qed times are larger than the
+Rtac Qed times, but both are terrible (e.g., 815 and 615 seconds,
+respectively, for the SHA loop-body example).
 
 
 \chapter{Conclusion}
