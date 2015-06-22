@@ -340,7 +340,10 @@ fact. Because there are generally difficult dependent types involved
 in constructing the proof term correctly, we use tactics to manipulate
 a proof state until we have successfully created a proof object. 
 
-If we wish to use the tactic we proved to help solve another goal
+If we wish to use the tactic we proved to help solve another goal. In
+Coq's interactive proving mode, goals are presented as hypothesis
+(things above the line) that you know, and the conclusion that you are
+trying to prove (below the line). 
 
 \begin{lstlisting}
 a : nat
@@ -350,15 +353,30 @@ c : nat
 a + (b + c) = a + (c + b) 
 \end{lstlisting}
 
-we can use the tactic \lstinline|rewrite (add_sym b c); reflexivity|
-to transform the left side to match the right side, and then tell Coq
-that we have an equation where the two sides are syntactically
-equal. We supply the arguments \lstinline|b| and \lstinline|c| to the
-tactic because it is ambiguous where to rewrite the lemma, and Coq
-might guess wrong unless we tell it.
+In this case we know that we have Coq variables \lstinline|a|,
+\lstinline|b|, and \lstinline|c|, and that they are all natural
+numbers. We are trying to prove \lstinline|a + (b + c) = a + (c + b)|.
+we can use the tactic \lstinline|rewrite (add_sym b c)|
+to transform the left side to match the right side:
 
-Now we can create a deep embedding, along with a denotation function
-for nat, addition, and equality
+\begin{lstlisting}
+a : nat
+b : nat
+c : nat
+======================
+a + (c + b) = a + (c + b) 
+\end{lstlisting}
+
+\noindent and then use the \lstinline|reflexivity| tactic, which
+checks to see if both sides of an equality are equal, solving the goal
+if it discovers that they are. In this case they are syntactically
+equal, so the goal is solved. We supply the arguments \lstinline|b|
+and \lstinline|c| to the tactic because it is ambiguous where to
+rewrite the lemma, and Coq might guess wrong unless we tell it.
+
+If we wish to solve this goal computationally we can create a deep
+embedding, along with a denotation function for nat, addition, and
+equality
 
 \begin{lstlisting}
 Inductive expr' :=
@@ -381,7 +399,12 @@ end.
 \end{lstlisting} 
 
 This syntax mirrors the syntax of a Coq goal, it means the same thing
-but we can compute on it inside of a Gallina program. When we apply
+but we can compute on it inside of a Gallina program. We define it in
+two levels (\lstinline|expr| and \lstinline|expr'|) so that every
+\lstinline|expr| has a denotation. This is not a requirement of a
+reified syntax, but it simplifies the other steps.
+
+When we apply
 the denotation function to the syntax and get a \lstinline|Prop| back,
 we say that the goal has been reflected. The process of
 \emph{computational reflection} mirrors a shallow embedding with a
@@ -394,9 +417,12 @@ Lemma add_sym' : forall a b,
 expr'_denote (add a b) = expr'_denote (add b a)
 \end{lstlisting}
 
-This isn't useful in proving the \emph{reification} (deep embedding
-that is equivalent to a shallow embedding---making the goal ``real'')
-of our earlier goal though:
+To use this we need a \emph{reified} version of our original goal. To
+reify the goal, we create a tactic called a reifier. This must be done
+using a tactic because tactics have the ability to match
+\lstinline|Prop|, while Gallina does not. The following is a
+reification of our original goal:
+
 
 \begin{lstlisting}
 a : expr
@@ -461,7 +487,8 @@ c : expr
 expr_denote ((eq (add a (add c b)) (add a (add c b))))  
 \end{lstlisting}
 
-\noindent and then the denotation function:
+\noindent and then the denotation function, reflecting the goal back
+to \lstinline|Prop|:
 
 \begin{lstlisting}
 a : nat
@@ -482,11 +509,11 @@ all. Instead, the proof object for computational reflection is the
 soundness proof for the function that is applied to the deep
 embedding. Although the example above did a very small amount of work
 in the symmetry function, in general such a function could be an
-entire decision procedure. Then we would be able to do a large amount
-of work on a deeply embedded proof term while hardly generating any
-proof object at all. In general, this will be substantially more
-efficient than using Ltac, especially as the size of the
-deeply-embedded statements grows.
+entire decision procedure for a complex problem. Then we would be able
+to do a large amount of work on a deeply embedded proof term while
+hardly generating any proof object at all. In general, this will be
+substantially more efficient than using Ltac, especially as the size
+of the deeply-embedded statements grows.
 
 Another advantage to a deeply embedded logic is that Gallina programs
 can be compiled to byte-code using Coq's \lstinline|vm_compute|
@@ -494,29 +521,32 @@ tactic, or even to machine code by way of OCaml in upcoming versions
 of Coq which allows it to be run significantly more efficiently, at
 the cost of adding a virtual machine to the trusted computing base.
 
-The technique of computational reflection in Coq aims to combine the
+The technique of computational reflection in Coq combines the
 interactivity of a shallow embedding with the efficiency of a deep
-embedding by moving between the two when it is needed.
+embedding by performing as much automated work as possible on the deep
+embedding, and returning a readable shallow embedding goal to the user
+when interaction is required.
 
 \section{Computational reflection}
 \label{sec:reflection}
 
 Proof by reflection is the technique of using proved-sound computation
 on a deep embedding to make progress in a proof. To use reflection on
-a shallow embedding, there will first need to be a translation from
-the shallow embedding into a deep embedding. Then a proved-sound
-function can be evaluated on the deep embedding, and the denotation
-function can be evaluated, resulting in a shallow embedding again.  If
-this is done all in a single step, the user of a reflective tactic
-never needs to know that reflection is being used. That means that the
-efficient, proved-sound decision procedures that can be used on deep
-embeddings can essentially be used as if they are tactics, along side
-all of the other tactics and Ltac automation that might be built up
-around a logic.
+a shallow embedding, there is first a translation, or
+\emph{reification} from the shallow embedding into a deep
+embedding. Then a proved-sound function can be evaluated (preferably
+using \lstinline|vm_compute| for the best performance) on the deep
+embedding, finally the denotation function can be evaluated, or
+\emph{reflected}, resulting in a shallow embedding again.  If this is
+done all in a single step, the user of a reflective never knows that
+reflection is being used. That means that the efficient, proved-sound
+decision procedures that can be used on deep embeddings can be used as
+tactics, along side other tactics and Ltac automation that might
+already be built up around a logic.
 
 The process of translating from a shallow embedding to a deep
-embedding is known as reification. Because Galina programs can't match on
-shallow embeddings, reification must be performed by a
+embedding is known as reification. Because Gallina programs can't
+match on shallow embeddings, reification must be performed by a
 tactic. Reification leaves us with a deep embedding (or reified
 expression), which allows us to use proved-sound Gallina functions to
 progress the proof state without large proof terms. When the deep
@@ -528,7 +558,7 @@ shallow embedding that is easy for the user to view and work with.
 
 Deep embeddings are purely syntactic; but even shallowly embedded
 languages may have substantial sublanguages that are purely
-syntactic---defined by inductive datatypes rather than semantic
+syntactic---defined by inductive data types rather than semantic
 definitions. In many program logics, for example, the programming
 language will not be a denotational semantics based on Gallina, but an
 operational semantics over syntactic program terms. Because the syntax
@@ -574,7 +604,7 @@ the C language.
 This rule is not sound with respect to the operational semantics of
 C. We need a proof that $e$ evaluates to a value. It could, for
 example, be a division by zero, in which case the program would crash
-and Hoare triples would not hold. The expression $e$ might
+and no sound Hoare triples could hold. The expression $e$ might
 typecheck in the C compiler, but can still get stuck in the
 operational semantics
 
@@ -588,23 +618,22 @@ A better assignment rule requires $e$ to evaluate:
 \end{mathpar}
 \FloatBarrier
 
-The proof of this rule is relatively easy, but the rule is
-inconvenient to apply because we must use the operational semantics to
-show that $v$ exists. In fact, any time that we wish to talk about the
-value that results from the evaluation of an expression, we must add
-an existential quantifier to our assertion. Showing that an expression
-evaluates can require a number of additional proofs. If our expression
-is \lstinline|(y / z)|, we will need to show that our precondition
-implies: \lstinline|y| and \lstinline|z| are both initialized,
-\lstinline|z $\not=$ 0|, and 
-\lstinline|$\texttildelow$(y = int_min $\wedge$ z =$\,$-1)|. 
-The latter case causes overflow, which is
-undefined in the C standard. These requirements will become apparent
-as we apply the semantic rules, and many of them will be trivially
-discharged. Even so, the proof will be required, when it was likely
-computationally obvious that it was unnecessary. A type system is the
-answer to this problem, but unfortunately C has an unsound type
-system, when we require soundness.
+This rule is inconvenient to apply because we must use the operational
+semantics to show that $v$ exists. In fact, any time that we wish to
+talk about the value that results from the evaluation of an
+expression, we must add an existential quantifier to our
+assertion. Showing that an expression evaluates can require a number
+of additional proofs. If our expression is \lstinline|(y / z)|, we
+will need to show that our precondition implies: \lstinline|y| and
+\lstinline|z| are both initialized, \lstinline|z $\not=$ 0|, and
+\lstinline|$\texttildelow$(y = int_min $\wedge$ z =$\,$-1)|.  The
+latter case causes overflow, which is undefined in the C standard for
+division. These requirements will become apparent as we apply the
+semantic rules, and some of them may be trivially discharged. Even
+so, the proof will be required, when it was likely computationally
+obvious that it was unnecessary. A type system is the answer to this
+problem, but unfortunately C has an unsound type system, when we
+require soundness.
 
 
 % \section{Type soundness of C}
@@ -671,14 +700,16 @@ system, when we require soundness.
 
 \section{A Sound C Type System}
 
-Instead we change the game.  We don't answer just type-checks or not,
-our typechecker produces verification conditions for the safety of
-expression evaluation in a type context. We create a type checker that
-computes fully, but gives simple, minimal preconditions to ensure
-expression evaluation. The preconditions may not be decidable, but
-they are left to the user of the logic to solve. We define a function
-\lstinline|typecheck_expr| (Section \ref{sec:typechecker}) to tell us
-when expressions evaluate.  Now our assignment rules are,
+Instead we change the typechecking game.  Instead of answering just
+``type-checks'' or ``doesn't typechck'', our typechecker can produce
+verification conditions that say ``typechecks if this assertion
+holds''. We create a type checker that computes fully, and gives
+simple, minimal preconditions to ensure expression evaluation. The
+preconditions may not be decidable, but they are left to the user of
+the logic to solve. We define a function \lstinline|typecheck_expr|
+(Section \ref{sec:typechecker}) to tell us when expressions evaluate
+in a type context $\Delta$.
+Now our assignment rules are,
 
 \vspace{-20pt}
 \begin{mathpar}
@@ -693,9 +724,25 @@ v. x = \mathsf{eval}(e[v/x]) \wedge P[v/x]}}\mbox{tc-floyd-assignment}
 
 The $\mathsf{typecheck\_expr}$ is not a side condition, as
 it is not simply a proposition (\lstinline|Prop| in Coq)
-but a separation-logic predicate quantified over an environment (Chapter \ref{ch:canonical}).  
-To make the rule usable we derive a new rule using the rule of
-consequence:
+but a separation-logic predicate quantified over an environment
+(Section \ref{sec:context}). This rule will be inconvenient to
+apply. In general, it is unlikely that the writer of a proof will have
+their assertion in the form
+$\mathsf{typecheck\_expr}(e,\Delta)~\wedge~P$. Instead they will likely have
+a precondition $P$ from which they can prove
+$\mathsf{typecheck\_expr}(e,\Delta)$. The Hoare rule of consequence is
+useful for this:
+
+\vspace{-20pt}
+\begin{mathpar}
+\inferrule{P \rightarrow P' ~ \tripleD{\Delta}{P'}{c}{Q'} ~ Q' \rightarrow Q}{\tripleD{\Delta}{P}{c}{Q}}
+\end{mathpar}
+
+It allows us to replace a precondition by one we know is implied by
+the current precondition. We can use this so that an preconditions doesn't
+get littered with $\mathsf{typecheck_expr}$ assertions that don't add
+any information to the precondition. To do this we derive a new rule using the rule of
+consequence. :
 
 \vspace{-20pt}
 \begin{mathpar}
@@ -705,6 +752,8 @@ v. x = \mathsf{eval}(e[v/x]) \wedge P[v/x]}}\mbox{tc-floyd-assignment'}
 \end{mathpar}
 \FloatBarrier
 
+This rule asks the user to prove that the typechecking condition
+holds, without requiring it to be in the precondition.
 To apply the rule you must show that the precondition implies
 whatever condition the type checker generates. In this way, our
 typechecker allows outside knowledge about the program, including
@@ -720,14 +769,14 @@ proof obligations if the type-and-initialization context $\Delta$ assures that
 $y$ and $z$ are initialized.
 The calculation of $\Delta$ is also part of our type system.
 
-We use the Floyd-style forward assignment rule,
-instead of the Hoare-style weakest-precondition rule.
-This is not related to type-checking; separation logic 
-with backward verification-condition generation gives us magic wands which are
-best avoided when possible \cite{berdine05:symbolic}.
+We use the Floyd-style forward assignment rule in our final proof
+system instead of the Hoare-style weakest-precondition rule.  This is
+not related to type-checking; separation logic with backward
+verification-condition generation gives us magic wands which are best
+avoided when possible \cite{berdine05:symbolic}.
 
 In tc\_floyd\_assignment, we use a function $\mathsf{eval}$ which is a
-function that has a similar purpose to compcert's
+function that has a similar purpose to CompCert's
 \lstinline|eval_expr| relation.  Defining evaluation as a function in
 this manner makes proofs more computational---more efficient to build
 and check. Furthermore, with a relation you need a new variable to
@@ -764,7 +813,7 @@ $\forall$ $\Delta$ $\rho$ e m ge ve te,  typecheck_environ $\Delta$ $\rho$ -> mk
 \end{lstlisting}
 
 Expression evaluation requires an environment, but when writing
-assertions for a Hoare logic, we actually write assertions that are
+assertions for a Hoare logic, we write assertions that are
 functions from environments to \lstinline|Prop|. So if we wish to say
 ``the expression $e$ evaluates to $5$'', we write 
 \lstinline|fun $\rho$ => eq (eval_expr e $\rho$) 5|.  Because Coq does not match or
@@ -788,18 +837,18 @@ the address of a local variable} means that one cannot reason straightforwardly 
 substituting for a program variable
 (as there might be aliasing).
 
-The first passes of CompCert translate
-\emph{CompCert C} (a refined and formalized version of C99
-\cite{Compcert-compiler-website}) into \emph{C light}.
-These passes remove side effects from expressions
-and distinguish \emph{nonaddressable} local variables from
-\emph{addressable} locals.\footnote{Xavier Leroy
-added the \lstinline|SimplLocals| pass to CompCert 1.12 at our request,
-pulling nonaddressable locals out of memory in C light.
-Prior to 1.12, source-level reasoning about local
-variables (represented as memory blocks) was  much more difficult.} We recommend
-that the user do this in their C code, however, so that the C light translation
-will exactly match the original program.
+The first passes of CompCert translate \emph{CompCert C} (a refined
+and formalized version of C99 \cite{Compcert-compiler-website}) into
+\emph{C light}.  These passes remove side effects from expressions and
+distinguish \emph{nonaddressable} local variables from
+\emph{addressable} locals.\footnote{Xavier Leroy added the
+  \lstinline|SimplLocals| pass to CompCert 1.12 at our request,
+  pulling nonaddressable locals out of memory in C light.  Prior to
+  1.12, source-level reasoning about local variables (represented as
+  memory blocks) was much more difficult.}  Even though CompCert does
+this automatically, we recommend that the user do this in their C
+code, so that the C light translation will exactly match the original
+program.
 
 C has pointers and permits pointer dereference in subexpressions: 
 \begin{lstlisting}[language=C]
@@ -815,15 +864,12 @@ in subexpressions, so to reason about
 the programmer should factor into:
 \lstinline[language=c]|t = p->head; u = q->head; d=t+u;|
 where dereferences occur only at top-level in assignment commands.
-%Because this is a requirement of our logic, and not of CompCert C, this
-%\emph{must} be done by the user or they will get stuck during their proof.
 Adding these restrictions to C light gives us \emph{Verifiable C}, which is not
 a different semantics but a proper sublanguage, enforced by our typechecker.
 
-A well typed C program might still go wrong. These are the cases where the
-typechecker must generate assertions. A few of these cases might be surprising,
-even to experienced C programmers.
-The following operations are undefined in the C standard,
+A well typed C program might still go wrong, in this case meaning that
+the operational semantics is stuck. A sound typechecker must exclude
+these cases. The following operations are undefined in the C standard,
 and \emph{stuck} in CompCert C:
 \begin {itemize}
   \item shifting an integer value by more than the word size,
@@ -871,18 +917,18 @@ Fixpoint typecheck_expr ($\Delta$ : tycontext) (e: expr) : tc_assert :=
  ... end.
 \end{lstlisting}
 
-\noindent This function traverses expressions emitting conditions that
-ensure that the expressions will evaluate to a value in a correctly
-typed environment. The typechecker is actually a mutually recursive
-function: one function typechecks r-values and the other typechecks
-l-values.  Here, we will describe only the type-checking of r-value
-expressions; the type-checking of l-values is similar.  Although
-CompCert's operational semantics are written as an inductive relation
-in Coq, they also have parts that are computational. For example, when
-we need to typecheck expressions that perform mathematical operations,
-we use functions from CompCert that \emph{classify} them. The
-following function leverages the classification function to typecheck
-binary operations:
+\noindent This function traverses expressions emitting \emph{reified}
+conditions that ensure that the expressions will evaluate to a value
+in a correctly typed environment. The typechecker is actually a
+mutually recursive function: one function typechecks r-values and the
+other typechecks l-values.  Here, we only describe the type-checking
+of r-value expressions; the type-checking of l-values is similar.
+Although CompCert's operational semantics are written as an inductive
+relation in Coq, it also has computational parts. For example,
+compcert \emph{classification} functions help typecheck mathematical
+operations by determining the type of the resutl. The following
+function leverages the classification function to typecheck binary
+operations:
 \begin{lstlisting}
 Definition isBinOpResultType op a1 a2 ty : tc_assert :=
 match op with
@@ -896,19 +942,17 @@ match op with
 
 Most operators in C are overloaded. For example the addition operator
 works on both integers and pointers, behaving differently if given two
-integers, two pointers, or one of each. 
-Classification functions determine which of these overloaded semantics
-of operators should be used. These semantics are always determined by the types
-of the operands. 
-The C light operational semantics uses
-the constructors (\lstinline|add_case_ii|, \lstinline|add_case_pi|, (and so on))
-to choose whether to apply integer-integer add (\lstinline|ii|),
-pointer-integer add (\lstinline|pi|), and so on.
-The typechecker uses the same constructors
-\lstinline{add_case_ii, add_case_pi,} to choose
-type-checking guards, as shown above.
+integers, two pointers, or one of each.  Classification functions
+determine which of these overloaded semantics of operators should be
+used. These semantics are always determined by the types of the
+operands.  The C light operational semantics uses the constructors
+(\lstinline|add_case_ii|, \lstinline|add_case_pi|, (and so on)) to
+choose whether to apply integer-integer add (\lstinline|ii|),
+pointer-integer add (\lstinline|pi|), and so on.  The typechecker uses
+the same constructors \lstinline{add_case_ii, add_case_pi,} to choose
+type-checking guards.
 
-Despite the reuse of CompCert code on operations, the bulk of the
+Despite the reuse of CompCert code on operations, most of the
 typechecker checks binary operations. This is because of the operator
 overloading on almost every operator in C. The typechecker looks at
 eight types of operations (shifts, boolean operators, and comparisons
@@ -922,12 +966,30 @@ implemented. The first step is to match on the syntax. Next, if the expression
 is an operation, we use CompCert's classify function to decide which overloaded
 behavior to use. From there, we generate the appropriate assertion. 
 
-\section{Type Context}
+\subsection{Type Context}
 \label{sec:context}
 
 Expression evaluation requires an expression and an environment.  The
-result of expression evaluation depends on the environment. To
-guarantee that certain expressions will evaluate, we control what
+result of expression evaluation depends on the environment:
+
+\begin{lstlisting}
+Definition genviron := Map.t block.
+
+Definition venviron := Map.t (block * type).
+
+Definition tenviron := Map.t val.
+
+Inductive environ : Type :=
+ mkEnviron: forall (ge: genviron) (ve: venviron) (te: tenviron), environ.
+\end{lstlisting}
+
+We use a simple linear map \lstinline|Map.t| for this environment
+because in practice we expect it to always be a symbolic environment,
+meaning the implementation won't affect performance. The type
+\lstinline|block| is CompCert's address into the beginning of a
+malloc'ed block.
+
+To guarantee that certain expressions will evaluate, we control what
 values can appear in environments. A static type context characterizes
 the dynamic environments in which we can prove that expressions will
 evaluate to defined values.
@@ -936,10 +998,12 @@ evaluate to defined values.
 Definition tycontext: Type :=
    (PTree.t (type * bool) * (PTree.t type) * type * (PTree.t global_spec)).
 \end{lstlisting}
-\lstinline|PTree.t($\tau$)| is CompCert's efficient computational 
-mapping data-structure
-(from identifiers to $\tau$) implemented
-and proved correct in Coq.  
+\lstinline|PTree.t($\tau$)| is CompCert's efficient computational mapping
+data-structure (from identifiers to $\tau$) implemented and proved
+correct in Coq. A PTree is implemented as a binary trie. The type
+\lstinline|type| is not Coq's \lstinline|Type|, but the deep embedding
+of C types that appear in Clight programs.
+
 The elements of the type context are
 \begin{itemize}
   \item a mapping from temp-var names to type and initialization
@@ -956,33 +1020,44 @@ variable mappings, local variable mappings, and global variable
 mappings.
 
 The fifth item is specific to proofs and is separated from the fourth
-because function specifications can't be computed on. The reasoning
-for this will be discussed in Chapter \ref{ch:reflection}. 
+because function specifications can't be computed on in a reasonable
+amount of time. Separating these two allows us to do the computations
+we discuss in Chapter \ref{ch:reflection}. 
 
 A temporary variable is a (local) variable whose address is not taken
-anywhere in the procedure.  Unlike local and global variables,
-these variables can not alias---so we can statically determine when their
-values are modified. If the typechecker sees that a temporary variable
-is initialized, it knows that it will stay initialized. If the
-typechecker is unsure, it can emit an assertion guard for the user to
-prove initialization. Calculating initialization automatically is a
-significant convenience for the user; proofs in the previous
-generation of our program logic were littered with definedness
-assertions in invariants.
+anywhere in the procedure.  Unlike local and global variables, these
+variables can not alias---so we can statically determine exactly when
+their values are modified. If the typechecker sees that a temporary
+variable is initialized, it knows that it will stay initialized. The
+initialization analysis is conservative, but if the typechecker is
+unsure, it can emit an assertion guard for the user to prove
+initialization. In the case of initialization, the typechecker will
+never give a result of ``does not typecheck''. It will only say
+``yes'' or ``maybe''. It would be possible to occasionally simply say
+``no'', but this would require extra information from the type
+context, and wouldn't save the user much information. In fact, a
+simple answer of no from the typechecker will simplify an entire
+assertion to no, which can make it difficult for the user to find
+exactly where the ``no'' came from.
+
+
+Calculating initialization automatically is a significant convenience
+for the user; proofs in the previous generation of our program logic
+were littered with definedness assertions in invariants.
 
 The initialization information is a Boolean that tells us if a
 temporary variable has certainly been initialized. The rules for this
 are simple, if a variable is assigned to, that variable will always be
 initialized in code executed after it.  The initialization status on
-leaving an \lstinline|if-then-else| is the greatest lower bound of the two
-branches. Loops have similar rules.
+leaving an \lstinline|if-then-else| is the greatest lower bound of the
+two branches. Loops have similar rules.
 
 
-\lstinline|typecheck_environ| checks an \lstinline|environ| with respect to
-a \lstinline|tycontext|. 
-It does not generate assertions as
-\lstinline|typecheck_expr| does, it simply returns a Boolean
-that if \lstinline{true} guarantees all of the following:
+\lstinline|typecheck_environ| checks an \lstinline|environ| with
+respect to a \lstinline|tycontext|.  It does not generate assertions
+as \lstinline|typecheck_expr| does, it simply returns a Boolean that
+if \lstinline{true} guarantees all of the following:
+
 \begin{itemize}
 \item If the type context contains type information for a temporary
   variable, the environment contains a (possibly undefined) value for
@@ -1029,7 +1104,7 @@ program will typecheck. It will typecheck because the type context is allowed
 to be smaller than the dynamic environment and we believe the
 \lstinline[language=c]|return| expression is casting between pointers.
 We need to disallow casts from int to pointer in our
-typesystem, however, so we don't want this function to typecheck. The fourth
+type system, however, so we don't want this function to typecheck. The fourth
 point above prevents this situation by requiring a variable that is shadowed in
 a dynamic environment to also be shadowed in the type context.
 
@@ -1084,19 +1159,17 @@ branches of a preceding \lstinline|if| statement. When we say initialized, we
 mean \emph{unambiguously} initialized, meaning that it will be initialized
 during all possible executions of the program.
 
-The type context is deeply integrated with the logic rules. We write our Hoare
-judgment as
-$\tripleD{\Delta}{P}{c}{Q}$. It contains the type context $\Delta$ because instead
-of quantifying over all environments as a normal Hoare triple does, we quantify
-only over environments that are well typed with respect to $\Delta$. This has a
+The type context is deeply integrated with the logic rules. We write
+our Hoare judgment as $\tripleD{\Delta}{P}{c}{Q}$. It contains the
+type context $\Delta$ because instead of quantifying over all
+environments as a normal Hoare triple does, we quantify only over
+environments that are well typed with respect to $\Delta$. This has a
 benefit to the users of the rules: it guarantees that all sound Hoare
-rules will update the type context correctly. Because we expect that
-only the type checker will ever need to examine the type context, this
-means that the user does not need to worry about the
-contents of $\Delta$, and they do not need to show that the environment
-typechecks or mention  $\Delta$ explicitly in preconditions.
-Our \emph{rule of consequence} illustrates
-what we always know about $\Delta$:
+rules update the type context correctly. Because only the type checker
+will ever need to examine the type context, the user does not need to
+worry about the contents of $\Delta$, show that the environment
+typechecks or mention $\Delta$ explicitly in preconditions.  Our
+special \emph{rule of consequence} illustrates what we always know about $\Delta$:
 \begin{mathpar}
 \inferrule{
 \mathsf{typecheck\_environ} \Delta \wedge P\vdash P'\qquad
@@ -1104,12 +1177,12 @@ what we always know about $\Delta$:
 {\tripleD{\Delta}{P}{c}{R}}
 \end{mathpar}
 
-The conjunct $\mathsf{typecheck\_environ} \Delta$
-gives the user more information to work
-with in proving the goal. Without this, the user 
+The conjunct $\mathsf{typecheck\_environ} \Delta$ gives the user more
+information to work with in proving the goal. Without this, the user
 would need to explicitly strengthen assertions and loop invariants
-to keep track of the initialization status of variables
-and the types of values contained therein.
+before applying the rule of consequence to keep track of the
+initialization status of variables and the types of values contained
+therein.
 
 Although we've mentioned the environment $\rho$, and that we are
 typechecking $\Delta$ against it, $\rho$ hasn't appeared in our formulas
@@ -1137,7 +1210,7 @@ the normal Hoare rules, with our special Hoare rule for statement
 sequencing shown above. 
 
  
-\section{Soundness}
+\subsection{Soundness}
 \label{sec:tc_sound}
 The soundness statement for the typechecker is:
 
@@ -1158,20 +1231,41 @@ The \lstinline|typecheck_val| function guarantees that an expression
 will evaluate to the right kind of value: integer, or float, or
 pointer. It also gives a range on the value that can be expected from
 an integer as opposed to a short or a boolean.  As a corollary we
-guarantee the absence of \lstinline|Vundef|, which has no type.
+guarantee the absence of \lstinline|Vundef| (the undefined value in
+CompCert C), which has no type.
 
-The proof proceeds by induction on the expression.  One of the most
-difficult parts of the soundness proof is the proofs about binary
-operations. We need to prove that when a binary operation typechecks,
-it evaluates to a value, as a case for the main soundness proof. The
-proof is difficult because of the number of cases. When all integers
-and floats of different sizes and signedness are taken into account,
-there are seventeen different CompCert types. This means that there
-are 289 combinations of two types. A proof needs to be completed for
-each combination of types for all seventeen C light operators, leading
-to a total of 4913 cases that need to be proved.  The amount of memory
-taken by the proof becomes a problem. We use lemmas to group some of
-the cases together to keep the proof time reasonable.
+We also prove that if our environment $\rho$ matches a CompCert Clight
+environment, a typecontext $\Delta$ typechecks in $\rho$, and an expression
+$e$ typechecks in $\Delta$ and $\rho$ then the CompCert operational semantics
+will give the same result as our \lstinline|eval_expr| function when
+evaluating $e$ in $\rho$. 
+
+\begin{lstlisting}
+rho = construct_rho (filter_genv ge) ve te ->
+typecheck_environ Delta rho ->
+(denote_tc_assert (typecheck_expr Delta e) rho ->
+Clight.eval_expr ge ve te m e  (eval_expr e rho))
+\end{lstlisting}
+
+This fact is required in order to prove a Hoare triple sound with
+respect to CompCert's operational semantics. It allows us to use our
+computational \lstinline|eval_expr| and \lstinline|typecheck_expr| to
+generate preconditions and postconditions while showing in our proofs
+that these functions are actually doing the same thing that CompCert's
+\lstinline|eval_expr| (operational semantics for expressions) does.
+
+The proofs proceed by induction on the expression \lstinline|e|. One
+of the most difficult parts of the soundness proof is the proofs about
+binary operations. We need to prove that when a binary operation
+typechecks, it evaluates to a value, as a case for the main soundness
+proof. The proof is difficult because of the number of cases. When all
+integers and floats of different sizes and signedness are taken into
+account, there are seventeen different CompCert types. This means that
+there are 289 combinations of two types. A proof needs to be completed
+for each combination of types for all seventeen C light operators,
+leading to a total of 4913 cases that need to be proved.  The amount
+of memory taken by the proof becomes a problem. We use lemmas to group
+some of the cases together to keep the proof time reasonable.
 
 These cases are not all written by hand: we automate using Ltac.
 Still, the proofs are large, and Coq takes almost 4 minutes to process
@@ -1376,23 +1470,6 @@ and calculates the one verification condition that remains to be
 solved outside the typechecker: that $c/3$ does not overflow.  We can no longer see the
 variables \lstinline|_c| and \lstinline|_a|.
 
-% Instead we see (32-bit) integer Coq variables \lstinline{c, a}.
-% This is because of the work done by \lstinline|go_lower|. Proving a ``lifted''
-% entailment (where the antecedent and consequent both have the type
-% \lstinline{environ->predicate})
-% can be done by introducing an environment variable $\rho$,
-% then unlifting \cite{bengtson12}, 
-% so that (for example) the precondition
-% will contain \linebreak
-% \lstinline|(eval_id _c $\rho$ = eval_id _a $\rho$ * eval_id _a $\rho$)|.
-% Our tactics have then replaced all occurrences of
-% \lstinline|(eval_id _c $\rho$)| with simply \lstinline{c},
-% using the \lstinline|name| hypotheses to choose
-% the variable name \lstinline{c}.
-% The fact that \lstinline|c| must be a defined (initialized)
-% \lstinline|int| value is proved by \lstinline|go_lower|
-% using information from the typechecker.
-
 The defined predicate \lstinline|(denote-tc-nodivover (Vint c) (Vint (Int.repr 3)))|
 simplifies to \lstinline|(\neg(c = min_int /\ 3 = -1))|,
 which solves easily, using the \lstinline|solve_tc| tactic..
@@ -1520,7 +1597,7 @@ a debugger or an engine for symbolic execution.
 
 VST uses assertions to reason about programs, but what does it require
 about the form of these assertions? This chapter discusses that, as
-well as how restricting the form of assertions improve both the
+well as how restricting the form of assertions improves both the
 usability and the performance of symbolic execution.
 
 All assertions in VST's logic take an \lstinline|environ| as an
@@ -1530,7 +1607,7 @@ symbolic execution proceeds not by inserting symbolic values into an
 environment, but by writing assertions about the
 values. To do this, we simply add an assertion about the value of a
 variable when it is looked up in the environment. The function for
-looking up an unaddressed variable in an envionment is
+looking up an unaddressed variable in an environment is
 \lstinline|eval_id|. We can write an assertion of type
 \lstinline|environ -> Prop| about variable $x$ in environment $rho$:
 
