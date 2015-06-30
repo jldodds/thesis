@@ -17,10 +17,10 @@
 \renewcommand{\lstlistingname}{Figure}
 \input{macros}
 
-\hyphenate{Comp-Cert}
 
 \lstset{language=Coq,alsoletter=_,basicstyle=\sffamily,mathescape=true,columns=fullflexible}
 
+\hyphenation{Comp-Cert}
 
 
 \author{Josiah Dodds}
@@ -1659,7 +1659,7 @@ have the following operators:
 
 \begin{lstlisting}
 Definition !! (P : Prop) -> (environ -> mpred) => 
-fun _ _ => P.
+fun _ ~ _ => P.
 
 Definition local (Q : environ -> Prop) : (environ -> mpred) :=
 fun $\rho$ => prop (Q $\rho$).
@@ -1668,7 +1668,7 @@ fun $\rho$ => prop (Q $\rho$).
 The first, \lstinline|prop| takes a pure fact, and lifts it to the level of
 \lstinline|environ -> mpred| by taking (and ignoring) the environment
 and memory arguments. The second, \lstinline|local|, makes an
-\lstinline|environ -> prop| into an lstinline|environ -> mpred| of Q
+\lstinline|environ -> prop| into an \lstinline|environ -> mpred| of Q
 by giving the environment to \lstinline|Q| but using the 
 \lstinline|prop| function to throw away the memory. 
 
@@ -1679,9 +1679,12 @@ operator. Putting those together we can write an assertion
 such as
 
 \begin{lstlisting}
+(* Pure comparison between the Coq variable x and the C value 3 *)
 !!(x = 3) &&
-local (`eq (eval_id _x)  `x) &&
-(p1 $\mapsto$ x * p2 $\mapsto$ 5)cc
+(* Tests equality of C local variable _x to the Coq variable for the C
+   value X *)
+local (`eq (eval_id _x)  `x) && 
+(p1 $\mapsto$ x * p2 $\mapsto$ 5)
 \end{lstlisting}
 
 Appel et al. \cite{appel14:plcc} organized these assertions into a
@@ -1689,7 +1692,7 @@ $\PROP$/$\LOCAL$/$\SEP$ form to make them easier to manipulate in
 proofs. I will describe this \emph{semicanonical form} in section
 \ref{sec:scform}. Then I will improve on that form, which makes proof
 easier to automate than they were in semicanonical form. This
-\emph{canonical form} is described in Section \ref{sec:cform}
+\emph{canonical form} is described in Section \ref{sec:cform}.
 
 \section{Semicanonical Form}
 \label{sec:scform}
@@ -1720,7 +1723,7 @@ a convenient manner:
 
 \begin{lstlisting}
 Definition temp (i: ident) (v:val) : environ -> Prop :=
-  `eq (eval_id i) (`v)
+  `(eq v) (eval_id i)
 
 Definition var (i: ident) (t: type) (v: val) : environ -> Prop :=
   `(eq v) (eval_var i t).
@@ -1782,8 +1785,8 @@ this is necessary:
 {eval_id x = 3 /\ eval_id x = 4}
 \end{lstlisting}
 
-For the triple above to hold, the program would need to infinite loop
-on the assignment to \lstinline|x|, which seems unlikely. Instead we
+This is clearly the wrong Hoare triple; the postcondition is
+unsatisfiable even though the command is quite reasonable. Instead we
 do the substitution and get:
 
 \begin{lstlisting}
@@ -1865,29 +1868,12 @@ assertion. Our new canonical form imposes such a restriction, and in doing
 so, eliminates the need for semantic substitution, replacing it with a
 more efficient and convenient computational syntactic substitution.
 
-One limitation of canonical form is that we no longer allow references
-to C program variables in the part of the assertion that contains
-spatial assertions. If these assertions wish to talk about those
-variables, they must do it indirectly using a Coq variable.  This
-means that only the $\LOCAL$ part of the assertion has the ability to
-reference local variables. This still doesn't give us the ability to
-syntactically locate each reference though, so we restrict $\LOCAL$
-further. The restriction we use is to change the entirety of $\LOCAL$
-into two computational maps from identifiers to values.  One of these
-represents temporary or nonadressable variables, and the other
-represents addressable variables. Each mapping represents an equality
-between the evaluation of an identifier in the environment, and the
-value it maps to. The mappings are represented by PTrees, an efficient
-computational data structure in the Coq standard library.
-
-The environment is still passed to the $\SEP$, however, which still
-means we can't do syntactic substitution. To fix this, we simply no
-longer pass the environment to the $\SEP$. That's not to say that the
-$\SEP$ has no way to talk about local variables --- it would be
-useless if it couldn't. It can still reference local variables by
-sharing a Coq variable with the $\LOCAL$. To restrict the $\SEP$ we
-introduce a function that should be at the top level of any canonical
-form assertion:
+In place of Appel's ``semicanonical form'' $\PROP$/$\LOCAL$/$\SEP$, we
+introduce a ``canonical form'', \lstinline|assertD P (localD Q1 Q2)R|
+.
+The \lstinline|assertD| function is a restriction on
+$\PROP$/$\LOCAL$/$\SEP$, so \lstinline|assertD| can be defined using
+$\PROP$/$\LOCAL$/$\SEP$:
 
 \begin{lstlisting}
 Definition assertD (P : list Prop) (Q : list (environ -> Prop)) 
@@ -1895,12 +1881,12 @@ Definition assertD (P : list Prop) (Q : list (environ -> Prop))
 PROPx P (LOCALx Q (SEPx (map (liftx) R))).
 \end{lstlisting}
 
-All that assertD does is change the type of \lstinline|R| from 
+All that \lstinline|assertD| does is change the type of \lstinline|R| from 
 \lstinline|list (environ -> mpred)| to \lstinline|list mpred|.
-So if we had a semi-canonical assertion:
+So if we have a semi-canonical assertion:
 
 \begin{lstlisting}
-PROP P
+PROP~P
 LOCAL ()
 SEP (`data_at 3 _x)
 \end{lstlisting}
@@ -1911,25 +1897,43 @@ we can make it more canonical by instead using the equivalent:
 assertD P [temp _x x] [data_at 3 x]
 \end{lstlisting}
 
-
-With these two changes we get \emph{canonical form.} We have defined
-\lstinline|assertD|, which gives a syntactic restriction on using the
-environment in the separation part of the assertion, now we describe
-how to syntactically restrict the $\LOCAL$.  
-Let \lstinline{$T_1$: PTree val} 
-be an efficient computational map from C program
-identifiers to C values, representing the current values of the
-temporary local variables of the current program state. Let
-\lstinline{$T_2$: PTree (type*val)} be a map from identifiers to
-\lstinline{type*val} representing the addresses of addressable local
-variables.  Then \lstinline{localD $T_1$ $T_2$: list(environ->Prop)}
-is a list of assertions about the contents of the \lstinline{environ},
-the non-memory portion of the program state; we do not need
-\emph{arbitrary} assertions of type \lstinline{list(environ->Prop)}.
+The other part of canonical form is the \lstinline|localD| function,
+which must create the \lstinline|Q| argument to \lstinline|assertD|
+for the assertion to be in canonical form. The purpose of the
+\lstinline|localD| function is to restrict the $\LOCAL$ part of the
+assertion to be made up of two computational maps from C identifiers
+to values. Let \lstinline{$T_1$: PTree val} be an efficient
+computational map from C program identifiers to C values, representing
+the current values of the temporary local variables of the current
+program state. Let \lstinline{$T_2$: PTree (type*val)} be a map from
+identifiers to \lstinline{type*val} representing the addresses of
+addressable local variables.  
+Then \lstinline{localD $T_1$ $T_2$: list(environ->Prop)} is a list of
+assertions about the contents of the \lstinline{environ}, the
+non-memory portion of the program state;
+we do not need \emph{arbitrary} assertions of type
+\lstinline{list(environ->Prop)} because the two tables allow all of
+the manipulations needed on the \lstinline|environ|. Any other
+assertions can then be moved into $\PROP$.
 
 \lstinline{localD} is a \emph{denotation function}, reflecting the
 syntactic (computationally oriented) $T_1$ and $T_2$ back into our
-semantic world.  In symbolic execution and efficient entailment
+semantic world:
+
+Definition localD (T1: PTree.t val) (T2: PTree.t (type * val)) :=
+  PTree.fold (fun Q i v => temp i v :: Q) T1
+    (PTree.fold (fun Q i tv => var i (fst tv) (snd tv) :: Q) T2 nil).
+
+
+The \lstinline|PTree.fold| function behaves the same way as a fold on
+a list works, but the function is given both the key and the
+value. All this denotation function says is that every key value pair
+in the first map represents an equality between the evaluation of a
+temporary variable (the key) and a value (the value in the mapping),
+and the second map says the same, but for adressable variables.
+
+
+In symbolic execution and efficient entailment
 solving, we operate directly on $T_1$ and $T_2$, reflecting the
 results back only when the less efficient (but easier to understand)
 semantic view is needed by the user. 
@@ -1959,7 +1963,7 @@ To translate back, you can simply unfold the definitions of \lstinline|assertD|
 and \lstinline|localD|.
 
 \subsection{Substitution in Canonical Form}
-\label{subst_canon}
+\label{sec:subst_canon}
 Substitution in this assertion is as simple as adding/replacing a
 mapping in $T_1$ or $T_2$. To see why, imagine that we are doing a
 substitution on a temporary variable $x$.  \lstinline|$P$ : list prop|
@@ -1969,7 +1973,7 @@ variable $x$ is a temporary variable, so we know $T_2$ is closed
 wrt. $x$.  The map $T_1$, however, might have a reference to $x$,
 meaning we actually need to do a substitution, making sure to replace
 every reference to that variable. One of the axioms about PTrees
-(efficient computational maps from positive numbers) is:
+is:
 
 \begin{lstlisting}
 Theorem PTree.gss
@@ -1979,7 +1983,8 @@ Theorem PTree.gss
 
 This means that if we update $x$ in some PTree, the old mapping of $x$
 will no longer exist, which is the exact definition we want from a
-substitution. 
+substitution (And it takes only logN time, where N is the positive
+number representing the identifier i.)
 
 The semicanonical Floyd Hoare-rule for forward assignment is:
 
@@ -1989,17 +1994,21 @@ The semicanonical Floyd Hoare-rule for forward assignment is:
         (normal_ret_assert (PROPx P (LOCALx (`eq (eval_id id) (eval_expr e)::Q) (SEPx R)))).
 \end{lstlisting}
 
-This won't work well in canonical form because 
-\lstinline|(eval_epr e : environ -> val)| appears in the locals while canonical form only
+The equality \lstinline|`eq (eval_id id) (eval_expr e)| is difficult to
+reproduce in canonical form because it uses 
+\lstinline|(eval_expr e : environ -> val)|. 
+We run into trouble beause canonical form only
 allows type \lstinline|val| to be mapped to by variables in the
-locals. This is a requirement of canonical form because it is what
-allows for syntactic substitutions, so we need to find a way to turn
-expression \lstinline|e| into a \lstinline|val|. We can take
-advantage of the syntactic expressions of the program to write a standard, easily
-computable syntactic substitution that implies the substitution fact
-we need when applied to canonical expressions. We use this technique
-to create \lstinline|msubst_eval_expr|, which looks a lot like
-\lstinline|eval_expr| but operates over symbolic PTrees instead of an environment:
+locals, but we are unable to evaluate a C expression (convert it from
+\lstinline|expr| to \lstinline|val|) without an environment. Canonical
+form is a mapping to \lstinline|val| because that allows for syntactic
+substitutions. We can take advantage of the syntactic expressions of
+the program to write a standard, easily computable syntactic
+substitution that implies the substitution fact we need when applied
+to canonical expressions. We use this technique to create
+\lstinline|msubst_eval_expr|, which looks a lot like
+\lstinline|eval_expr| but operates over symbolic PTrees instead of an
+environment:
 
 \begin{lstlisting}
 Fixpoint msubst_eval_expr (T1: PTree.t val) (T2: PTree.t vardesc) (e: Clight.expr) : option val :=
@@ -2020,7 +2029,7 @@ Fixpoint msubst_eval_expr (T1: PTree.t val) (T2: PTree.t vardesc) (e: Clight.exp
 
 One significant difference is that \lstinline|msubst_eval_expr| returns
 an option. This is because it will fail if it is unable to find a
-mapping about a variable in the symbolic environment that it is
+mapping for a variable in the symbolic environment that it is
 given. Instead of (first) performing a
 syntactic substitution and (then) symbolic-evaluating the expression
 as we needed to do before evaluating \lstinline|eval_expr|,
@@ -2031,13 +2040,15 @@ might not be any information about a variable in the assertion.
 
 Here is an example evaluation of how we might call
 \lstinline|msubst_eval_expr|, we use a different font to distinguish
-specifications from programs.
+specifications from programs, and an underscore to show that a
+variable is a C identifier (e.g. $\_x$) as opposed to a Coq
+variable (e.g. $y$).
 
 \begin{lstlisting}
-msubst_eval_expr [$x \mapsto y + 3$] [] (5 + x)
+msubst_eval_expr [$\_x \mapsto y + 3$] [] (5 + _x)
 \end{lstlisting}
 
-It progresses by matching the expression, so the first thing it sees
+The symbolic evaluation progresses by matching the expression, so the first thing it sees
 is the addition operator (\lstinline|Ebinop| case above). It
 recursively evaluates \lstinline|5| to $5$,
 and \lstinline|x| to \lstinline|Some $(y +  3)$| by performing a lookup in the map
@@ -2050,11 +2061,11 @@ a final result:
 Some ($5 + (y + 3)$)
 \end{lstlisting}
 
-We write an lemma that requires \lstinline|msubst_eval_expr| to succeed
+We write a lemma that requires \lstinline|msubst_eval_expr| to succeed
 (by returning \lstinline|Some|):
 
 \begin{lstlisting}
-Axiom semax_PTree_set: $~~$forall $\Delta$ id P T1 T2 R $e$ v,
+Lemma semax_PTree_set: $~~$forall $\Delta$ id P T1 T2 R $e$ v,
   msubst_eval_expr T1 T2 $e$ = Some v ->
   semax $\Delta$
     (|> local (tc_expr $\Delta$ e) && local (tc_temp_id id (typeof e) $\Delta$ e) 
@@ -2077,15 +2088,14 @@ two typechecking facts:
 \end{itemize}
 
 If we have these two facts and know that \lstinline|msubst_eval_expr|
-succeeds, this lemma will apply to any canonical form assertion. All
-it needs to do to get the postcondition from any canonical
-precondition is modify \lstinline|T1| with the new mapping.
+succeeds, this lemma calculate the postcondition by modifying
+\lstinline|T1| with the new mapping.
 
 Although this rule appears complex, the user will never see it. The
 Floyd automation will choose and apply it automatically, using a
 derived form of the lemma that builds in the rule of consequence,
 presenting the typechecking assertions as entailments in their own
-subgoals, 
+subgoals.
 
 There is a downside to stating the lemma in this way. The precondition
 must have mappings for every variable that appears in \lstinline|e|. The
@@ -2094,9 +2104,11 @@ semicanonical lemma doesn't require this because it uses
 complete, successful, symbolic execution. This still works for proofs
 because \lstinline|`eval_expr $e$| might eventually simplify to
 \lstinline|`eval_id $x$|, which could appear in other places in the
-assertion.
+assertion. This is only an inconvenience though, as any triple that
+was provable in semicanonical form can be proved in canonical form by
+correctly transforming the assertions.
 
-Floyd's forward assignment rule has an existential to bind the 'old'
+Floyd's forward assignment rule has an existential to bind the `old'
 value of the variable.  Our \lstinline|semax_PTree_set| avoids this
 existential by making sure that the only direct reference to the old
 variable is replaced when the PTree is updated.  This simplifies the
@@ -2108,19 +2120,33 @@ convenient for the user when \emph{writing} assertions. PTrees should
 not be constructed by hand, so we provide a tactic for converting from
 semicanonical form to canonical form. Semicanonical form allows the
 $\LOCAL$ to remain smaller, because if there is a variable the user
-knows nothing about, there is no need to add it to the locals. In
+knows nothing about, there is no need to add it to the locals. 
+
+For example the semicanonical precondition for a program that has a linked list
+might look like:
+
+\begin{lstlisting}
+PROP() LOCAL () SEP (`(lseg LS sh (map Vint contents)) (eval_id _p) `nullval)
+\end{lstlisting}
+
+but in canonical form it would be:
+
+\begin{lstlisting}
+assertD nil (localD [_p $\mapsto$ p] []) [lseg LS sh (map Vint contents) p nullval]
+\end{lstlisting}
+
+In
 canonical form, any variable that will be used during the execution of
-a program must be in the $\LOCAL$ because we lose the ability to talk
-about the environment in the $\SEP$. Canonical form is
-more convenient when moving through a proof of a program. It avoids
-existentials and substitutions that are slow to simplify, or
-sometimes don't simplify at all. 
+a program must be in the $\LOCAL$ because \lstinline|msubst_eval_expr|
+will fail without it. Canonical form is more convenient when moving
+through a proof of a program. It avoids existentials and substitutions
+that are slow to simplify, or sometimes don't simplify at all.
 
 Even the current form is not completely canonical. It could be
 restricted further which would improve performance in some ways, but
 also inconvenience the user in others. Finding a way to sort the
 $\SEP$ and keep it sorted as new conjunctions are added could lead to
-very efficient and simple entailment solving. This is because one of
+more efficient entailment solving. This is because one of
 the main steps in entailment solving is \emph{cancellation}, which
 attempts to match
 each of the $r$ separating conjuncts on the right hand side of an
@@ -2157,7 +2183,7 @@ type of assertion more difficult than what we did in the $\LOCAL$.
 
 
 Our proof (semi)automation has been implemented by a program that we
-call "floyd", written in Coq's Ltac language.  Ltac is an interpreted,
+call ``floyd'', written in Coq's Ltac language.  Ltac is an interpreted,
 dynamically typed, backtracking language with powerful
 pattern-matching on proof goals, that produces a trace of its
 (nonbacktracked) execution in the form of a proof object.
@@ -2189,7 +2215,7 @@ a complete reflective tactic:
 \item denotation functions to reflect reified syntax back into Coq
   proof goals, and
 \item a tactic to combine these steps into a single, fast, proof state
-  transformation
+  transformation.
 \end{enumerate}
 
 With these complete, we should be able to take the following goal
@@ -2197,7 +2223,7 @@ With these complete, we should be able to take the following goal
 We previously discussed the forms of our assertions as they appear in
 Coq goals. \lstinline|semax| is our name for Hoare triple. We
 discussed the type context $\Delta$ in Chapter \ref{ch:typechecking} and the
-$\PROP \LOCAL \SEP$ form in Chapter \ref{ch:canonical}:
+$\PROP$/$\LOCAL$/$\SEP$ form in Chapter \ref{ch:canonical}:
 
 \begin{lstlisting}
 ==================
@@ -2206,27 +2232,24 @@ semax $\Delta$
      w = 3;
      y = 2 / y; 
      x = *z;
-     if (y)
-     {
-       q = 0;
-     }
-     {
-       q = 1;
-     }
+     if (y) 
+     { q = 0; }
+     else
+     { q = 1; }
   {POST}
 \end{lstlisting}
 
 and with the application of a single tactic, called
-\lstinline|rforward|, or reified forward, we quickly get two proof goals back:
+\lstinline|rforward|, or reified forward, we quickly get two proof
+goals back.  The first one is the verification condition for the
+successful evaluation of 2/y:
 
 \begin{lstlisting}
 ================== 
-PROP () LOCAL (temp _x 2; temp _y y; temp w 3) SEP (data_at _z 3) |--
-y <> 0 
+PROP () LOCAL (temp _x 2; temp _y y; temp w 3) SEP (data_at _z 3)  $~$ |--$~~$  !!(y <> 0) 
 \end{lstlisting}
 
-Which is the entailment that must be solved to show that the
-expression \lstinline|y = 2 / y| evaluates to a value, and the
+The second proof goal is the remainder of the command sequence, the
 triple that \lstinline|rforward| was unable to progress through:
 
  
@@ -2234,17 +2257,14 @@ triple that \lstinline|rforward| was unable to progress through:
 ==================
 semax $\Delta'$ 
   {PROP () LOCAL (temp _x 3; temp _y (2 / y); temp w 3) SEP (data_at _z 3)} 
-     if (y)
-     {
-       q = 0;
-     }
-     {
-       q = 1;
-     }
+     if (y) 
+     { q = 0; }
+     else
+     { q = 1; }
   {POST}
 \end{lstlisting}
-\noindent because currently \lstinline|rforward| can only progress
-through basic blocks.
+\noindent currently \lstinline|rforward| stopped here because
+(currently) it can only progress through basic blocks.
 
 We will discuss the implementation of all of steps listed above, along
 with the interesting interactions between VST and the reflective
@@ -2254,15 +2274,16 @@ framework.
 \label{sec:reification}
 The first step in using Mirror Core is to create a tactic for
 reification. Mirror Core includes a reification plugin written in
-OCaml. \footnote{We use an OCaml plugin because Ltac typechecks
-  aggressively when creating terms, leading to quadratic-time behavior
-  when implementing Ltac reifiers. An Ltac that recursively builds a
-  term (A (B (C))) will typecheck C, then B, then B C, then A, then (A
-  (B C)) and so on.  We prefer to avoid plugins because they seem to
-  be less portable than plugin-free Coq developments}.  The plugin is
-modular, meaning it can be updated with rules for translating various
-languages. The first step is to create a reified syntax for our
-logic. This syntax is made up of two parts:
+OCaml\footnote{One can write a reifier purely in the Ltac language,
+  but it will have quadratic running time. An Ltac that recursively
+  builds a term (A (B (C))) will typecheck C, then B, then B C, then
+  A, then (A (B C)) and so on. A plugin written in Ocaml can reify in
+  linear time.  We would like to avoid plugins, because they seem to
+  be less portable than plugin-free developments, but quadratic-time
+  reification is unacceptable}.  The plugin is modular, meaning it
+can be updated with rules for translating various languages. The first
+step is to create a reified syntax for our logic. This syntax is made
+up of two parts:
 
 \begin{enumerate}
 \item An inductive data structure with definitions for each type and
@@ -2270,7 +2291,7 @@ logic. This syntax is made up of two parts:
   functions.
 \end{enumerate}
 
-The functions are interpreted because they have meaning without
+The functions are considered interpreted because they have meaning even without
 examining the denotations. Crucially, Mirror Core can extend a symbol
 table with \emph{uninterpreted} functions if it must reify a function
 that it doesn't have a rule for. This allows it to work in the general
@@ -2280,9 +2301,9 @@ a symbol table, but the index in that table is all that can be
 reasoned about reflectively, since it is impossible to match a
 function in Gallina.
 
-The reified type definition is straightforward, the only particular
-requirement (guaranteed to Mirror Core by a typeclass instance) is
-that an arrow type exists:
+The reified type definition (the deep embedding of a subset of Coq
+types) is straightforward, the only particular requirement (guaranteed
+to Mirror Core by a typeclass instance) is that an arrow type exists:
 
 \begin{lstlisting}
 Inductive typ :=
@@ -2313,14 +2334,14 @@ We then define an inductive syntax for interpreted functions, which we
 divide into subgroups to make organization and matching easier:
 
 \begin{lstlisting}
-Inductive const :=
+Inductive const := (* Literals for basic data types *)
 | fN : nat -> const
 | fZ : Z -> const
 | fint : int -> const
 | fint64 : int64 -> const
 | ...
 
-Inductive eval :=
+Inductive eval := (* C light expression evaluation *)
 | feval_cast : type -> type -> eval
 | fderef_noload : type -> eval
 | feval_field : type -> ident -> eval
@@ -2328,7 +2349,7 @@ Inductive eval :=
 | feval_unop : unary_operation -> type -> eval
 | feval_id : ident -> eval.
 
-Inductive other :=
+Inductive other := 
 | feq : typ -> other
 | fnone : typ -> other
 | fsome : typ -> other
@@ -2337,15 +2358,15 @@ Inductive other :=
 ...
 
 Inductive func' :=
-| Const : const -> func'
-| Zop : z_op -> func'
-| Intop : int_op -> func'
-| Value : values -> func'
-| Eval_f : eval -> func'
-| Other : other -> func'
-| Sep : sep -> func'
-| Data : data -> func'
-| Smx : smx -> func'.
+| Const : const -> func' (* Literals for basic data types *)
+| Zop : z_op -> func' (* Operations on mathematical integers *)
+| Intop : int_op -> func' (* Operations over 32 bit integers *)
+| Value : values -> func' (* C values *)
+| Eval_f : eval -> func' (* C light expression evaluation *)
+| Other : other -> func' (* Uncategorized things *)
+| Sep : sep -> func' (* Separation logic predicates *)
+| Data : data -> func' (* data types *)
+| Smx : smx -> func' (* Predicates relating to our triple *).
 
 \end{lstlisting}
 
@@ -2357,8 +2378,8 @@ and \lstinline|fsome| above are examples of this. The other
 interesting function definitions are constructors with arguments of
 other types. These functions are said to take \emph{constants} as
 arguments. This is very convenient, because as discussed in chapter
-\ref{ch:computation}, most shallowly embedded logics, including ours,
-have deeply embedded sub languages that should not need to be reified
+\ref{ch:computation}, our shallowly embedded logic has deeply embedded
+sub languages that should not need to be reified
 in order to be computed on. These include things like the types of C
 variables and all parts of C expressions, as well as \lstinline|Z|,
 \lstinline|nat|, and any other Coq data type that might appear and be
@@ -2463,7 +2484,8 @@ The first item is a symbolic environment where we can put
 uninterpreted functions. The second and third are modular logics, a
 pure and separation logic respectively, that might eventually allow us
 to take advantage of generic decision procedures such as
-cancellers. Finally, \lstinline|func'| is our syntax definition.
+cancellers. Finally, \lstinline|func'| is our syntax definition, shown
+above.
 
 Now we must tell Mirror Core's reification tactic
 \cite[section~4.4.1]{malecha:thesis} how to use the syntax that we
@@ -2484,8 +2506,8 @@ Reify Pattern patterns_vst +=
 \end{lstlisting}
 
 This selection of rules shows most of the features that can be
-used. The identifiers \lstinline|patterns_vst_typ|
-\lstinline|patterns_vst_hastype| and \lstinline|patterns_vst| tell the
+used. The identifiers \lstinline|patterns_vst_typ|,
+\lstinline|patterns_vst_hastype|, and \lstinline|patterns_vst| tell the
 plugin which table the rule belongs to. Elsewhere in the file, the
 tables are defined and given an order in which they will be tried by
 the reifier. The first pattern defines the reification of the bool
@@ -2505,21 +2527,22 @@ presence tells the reification tactic how to process the value that is
 supplied to the function, in this case, \lstinline|id| says that there
 is no further processing required.  The \lstinline|Inj| constructor
 allows an injection of a reified function into Mirror Core's lambda
-calculus. This is not the same as a Verifiable C \lstinline|expr|, it
-is extensible language of reified Mirror Core terms:
+calculus. This extensible, deeply embedded language of reified terms
+is MirrorCore's \lstinline{expr} type
+(not to be confused with CompCert's expr type):
 
 \begin{lstlisting}
   Inductive expr : Type :=
   | Var : var -> expr  (* an identifier using de Bruijn indices. *)
   | Inj : func -> expr (* injection of a function into the lambda calculus *)
   | App : expr -> expr -> expr (* left expr applied to right expr *)
-  | Abs : typ -> expr -> expr (* abstraction. $\lambda (x : t). e$ 
+  | Abs : typ -> expr -> expr (* abstraction. $\lambda (x : t). e$ *)
   | UVar : uvar -> expr. (* unification variable, index into a mapping
                             environment *)
 \end{lstlisting}
 
 For a thorough discussion of this \lstinline|expr|, along with its
-denotation function see see \cite[section~3.1]{malecha:thesis}
+denotation function, see \cite[section~3.1]{malecha:thesis}
 
 The next rule demonstrates reifying a polymorphic equation. Of note is
 the type of the argument \lstinline|a|. It is 
@@ -2527,8 +2550,9 @@ the type of the argument \lstinline|a|. It is
 type and reify it into a Mirror Core type.
 
 The features shown here are sufficient to define reification for all
-of the symbols in VST. Mirror Core comes with built in representations
-of proof states and lemmas, as well as tactics that reify into those
+of the symbols in VST\footnote{We currently use 184 ``Reify'' commands in a 500
+  line file to define reification for our logic}. Mirror Core comes with built-in representations
+of Coq proof states and lemmas, as well as tactics that reify into those
 representations. There is no further customization needed, those
 tactics are automatically created given the customization we have
 presented here.
@@ -2553,8 +2577,15 @@ reification, it can't generate an equivalent tactic for taking the
 denotation of a reified expression. The denotation is simply
 represented by a function that we have already defined. It isn't the
 functionality that is difficult, but how the denotation is
-unfolded. To see what the problem is, we examine a term that will
-explode when \lstinline|vm_compute| is run on it. For example:
+unfolded. Coq has a variety of tactics that perform
+$\beta\eta$-reduction. An example is \lstinline|vm_compute| which unfolds
+every definition in an expression, applies functions, and simplifies
+match statements. The \lstinline|vm_compute| tactic is notable because
+it has the best performance of the Coq reduction strategy. It achieves
+this performance at the cost of increasing the trusted computing base
+by compiling the goal to bytecode and executing in a virtual machine. 
+Many of Coq's reduction tactics behave badly in the presence of opaque
+variables. For example, consider the following function/lemma:
 
 \begin{lstlisting}
 Fixpoint do_n (f : nat -> nat) n d :=
@@ -2563,27 +2594,79 @@ match n with
 | _ => d
 end.
 
-Goal forall n, do_n (fun n => if (ltb 1 n) then  n else n)  50 n = n.
+Goal forall n, do_n (fun n => if (ltb 1 n) then  n else n)  2 n = n.
 vm_compute.
 \end{lstlisting}
-explodes because \lstinline|ltb 1 n| can't compute. This means that
+
+gives us:
+
+\begin{lstlisting}
+  n : nat
+  ============================
+   (if match
+         (if match n with
+             | 0 => false
+             | 1 => false
+             | S (S _) => true
+             end
+          then n
+          else n)
+       with
+       | 0 => false
+       | 1 => false
+       | S (S _) => true
+       end
+    then
+     if match n with
+        | 0 => false
+        | 1 => false
+        | S (S _) => true
+        end
+     then n
+     else n
+    else
+     if match n with
+        | 0 => false
+        | 1 => false
+        | S (S _) => true
+        end
+     then n
+     else n) = n
+\end{lstlisting}
+
+Because \lstinline|n| is a Coq variable, it can't be evaluated in a
+match, and the if statement can't be resolved.
+
+This means that
 the recursive function will appear three times for each recursive
-call, resulting in $3^{50}$ or approximately $7\times 10^{23}$ unfoldings
+call. So if we instead evaluate the following:
+
+\begin{lstlisting}
+Goal forall n, do_n (fun n => if (ltb 1 n) then  n else n)  2 n = n.
+vm_compute.
+\end{lstlisting}
+
+\noindent we get  $3^{50}$ or approximately $7\times 10^{23}$ unfoldings
 of the function. The same problem arises with many quantified
 predicates that are unable to unfold completely. 
 
-There is no problem in reifying a complicated term like this, giving
+There is no problem in reifying a complicated term that has this behavior, giving
 us a term that looks something like 
 \lstinline|exprD (complex_thing_reified)|. 
 If we run \lstinline|vm_compute| on this
-term to try to get the denotation, however, the complex thing will also be
+term to try to calculate the denotation, however, the complex thing will also be
 unfolded once the denotation is taken, resulting in a likely massive term
-that can take a very long time to compute. The solution is to
+that can take a very long time to compute. Even if it didn't take a
+long time to compute, it is possible that the user had definitions
+that they didn't want unfolded, and unfolding those definitions could
+make the resulting triple difficult to understand.
+The solution to keeping these definitions folded is to
 carefully unfold all of the definitions that are part of the
 denotation function, while leaving everything that belongs to the
 original term alone. Coq has a tactic called \lstinline|cbv| that is
 perfect for just this purpose. The \lstinline|cbv| tactic can take a
-whitelist of functions that it should efficiently unfold.
+whitelist of definitions that it should efficiently unfold,
+considering all other definitions opaque.
 
 We can also supply \lstinline|cbv| with a blacklist. This might be
 more convenient if we knew all of the functions that will appear in
@@ -2621,11 +2704,13 @@ In (pencil-and-paper) separation logic, since Reynolds
 \cite{reynolds02}, we abbreviate 
 \lstinline|(p.head $\mapsto$  h * p.tail $\mapsto$ t)| with 
 \lstinline|(p $\mapsto$ (h,t))|, where (implicitly) there is some record type $\tau$ with
-components \lstinline|(head,tail)|.  We can view this "composite maps-to" as a
+components \lstinline|(head,tail)|.  We can view this ``composite maps-to'' as a
 dependently typed operator, \lstinline|p $\mapsto_{\tau}$ v|, where $\tau$ is the (deeply
 embedded syntactic) description of a C-language data type, and the
 type of \lstinline|v| depends on the value of $\tau$.  In our separation logic, we
-name this dependently typed composite maps-to \lstinline|data_at|:
+name this dependently typed composite maps-to
+\lstinline|data_at|. Qinxiang Cao in our research group is responsible
+for the definition of \lstinline|data_at| and the operators, theory, and proof automation related to it.
 
 \begin{lstlisting}
 reptype (t: type) : Type
@@ -2639,9 +2724,7 @@ data_at : Share.t -> forall t : type, reptype t -> val -> mpred
 
 This predicate is a key factor that makes VST usable, but it is
 difficult to reify because it is dependently typed.
-\lstinline|data_at| is dependently typed because it is a single
-predicate that works on expressions that could contain any C
-type. Because \lstinline|data_at| specifies the behavior of a program
+Because \lstinline|data_at| specifies the behavior of a program
 instead of just the program's memory organization, \lstinline|data_at|
 relates C values to Coq values. This requires the use of the
 \lstinline|reptype| function, which is simply a mapping from C types
@@ -2650,9 +2733,9 @@ typed functions. We are able to avoid this restriction, however,
 because we know that \lstinline|reptype| will always be applied to a C
 type that comes from a \emph{real} program. C types from real programs
 are always made completely from constructors with no Coq variables or
-opaque symbols.  When tau is a ground term, then (reptype tau) can be
+opaque symbols.  When $\tau$ is a ground term, then (reptype $\tau$) can be
 computed to a concrete Coq type before reification. The
-\lstinline|data_at| function applied \lstinline|reptype| fully
+\lstinline|data_at| function with \lstinline|reptype| fully
 evaluated on an argument is no longer a dependently typed function so
 it can be reified. The tricky part is that we can't use
 \lstinline|reptype| as the type of the reified function because the
@@ -2692,6 +2775,8 @@ But then to define the denotation function we need a definition:
 Definition typD_reptyp_reptype: forall t, typD  (reptyp t) = reptype t.
 \end{lstlisting}
 
+This definition is needed for the denotation function over
+\lstinline|fdata_at| to typecheck.
 We left out the body of the definition because it is built by Coq
 tactics to deal with the dependent types involved. We call it a
 definition rather than a lemma because we will need to be able to
@@ -2701,10 +2786,7 @@ construction of the function using tactics, we will conclude with
 constructed term typechecks, but unlike \lstinline|Qed|, leaves the
 term transparent so that it can be computed on.
 
-In order to convince the denotation function that the denotation
-\lstinline|fdata_at| applied to the reified type obtained by
-\lstinline|reptyp| will match the type obtained by \lstinline|reptype|
-in the implementation of \lstinline|data_at|. This is a significant
+This is a significant
 amount of work to be put into reifying a dependently typed
 function. It doesn't work in the general case either; this technique
 only works if you are sure that the dependent type will compute away
@@ -2719,7 +2801,7 @@ A Mirror Core tactic, called an \emph{Rtac} \cite[chapter
   6]{malecha:thesis}), is a Gallina program that transforms a reified
 proof state into a new reified proof state. To be used as a tactic,
 these programs must be proved sound with respect to the Coq
-implication. That is for tactic \lstinline|tac| (greatly simplified):
+implication. That is, for tactic \lstinline|tac| (greatly simplified):
 
 \begin{lstlisting}
 Definition rtac_sound tac := 
@@ -2773,8 +2855,8 @@ creating a tactic that will apply to a triple with a single statement:
 \begin{lstlisting}
 Definition APPLY_SKIP :=  (APPLY typ func  skip_lemma).
 \end{lstlisting}
-where \lstinline|skip_lemma| is the automatic reification of the 
-skip lemma used elsewhere in VST:
+where \lstinline|skip_lemma| is the automatic reification of
+\lstinline|semax_skip|, the Hoare logic rule for the C light "skip" statement.:
 
 \begin{lstlisting}
 Axiom semax_skip:
@@ -2805,15 +2887,15 @@ The core of this rule is the standard Hoare assignment rule
 $\triple{P}{id:=e}{\exists v, x=e[v/id] \&\& P[v/id]}$. We have added side
 conditions to make the rule sound for C and optimized the rule for
 canonical form by removing the existential and symbolically evaluating
-$e$ (Section \ref{subst_canon}). Now we briefly discuss each line:
+$e$ (Section \ref{sec:subst_canon}). Now we briefly discuss each line:
 
 \begin{itemize}
-\item Line 5: There is a type \lstinline|ty| for \lstinline|id| in the
-  type context
+\item Line 5: \lstinline|id| is the name of a C light program
+  variable; looking up this identifier in the type context yields the C light type "ty".
 \item Line 6: The type of the expression \lstinline|e| is compatible
   with the type \lstinline|ty|
 \item Line 7: \lstinline|e| symbolically evaluates in the precondition
-  to \lstinline|v| (see Section \ref{subst_canon})
+  to \lstinline|v| (see Section \ref{sec:subst_canon})
 \item Line 8: \lstinline|e| type checks (See Chapter
   \ref{ch:typechecking})
 \item Line 9: This is simply the postcondition. It is in a separate
@@ -2951,8 +3033,8 @@ where the entire tactic unifies a single unification variable with an expression
 
 Once we have defined the equivalent of \lstinline|FORWARD_SET| for
 each statement we are interested in stepping through, we can combine
-them in a single tactic we first present an idealized tactic, with a
-few details we added strictly for performance rules removed:
+them in a single tactic we first present an idealized tactic (for
+clarity, some details are removed that improve the performance):
 
 \begin{lstlisting}
 Definition SYMEXE_STEP Struct_env
@@ -2983,16 +3065,17 @@ precondition, and statement constants from a reified triple. This
 tactic operates by examining the statement and choosing the correct
 Rtac to apply to the triple. 
 
-There is one new tactic here, \lstinline|AT_GOAL|, which is used much
-like \lstinline|match| in Ltac. It allows you to examine the goal in
-order to decide which tactic you would like to apply. As long as each
-of the tactics are sound regardless of what you found when you
-examined the goal, the entire \lstinline|AT_GOAL| tactic will be sound.
+There is one tactic here that we haven't discussed before,
+\lstinline|AT_GOAL|, which is used much like \lstinline|match| in
+Ltac. It allows you to examine the goal in order to decide which
+tactic you would like to apply. As long as each of the tactics are
+sound regardless of what you found when you examined the goal, the
+entire \lstinline|AT_GOAL| tactic will be sound.
 
 The \lstinline|EAPPLY_SEQ| tactic is a tactic we defined to apply our
-reified sequence tactic. It is named \lstinline|EAPPLY| because it has
-the ability to create a unification variable if it has a quantified
-variable that isn't filled by application. In the case of the
+reified sequence lemma. It is named \lstinline|EAPPLY| because (like
+the Ltac eapply tactic, in which the "e" stands for "existential"), it has
+the ability to create a unification (``existential'') variable. In the case of the
 sequence lemma, this unification variable will be $P'$:
 
 \[
@@ -3002,11 +3085,15 @@ sequence lemma, this unification variable will be $P'$:
 \noindent because $P'$ appears above the line but not below it, it
 can't be discovered simply by applying the rule. Instead we must prove
 that some $P'$ exists, which we can do by unifying the unification
-variable and (or while) discharging both subgoals. The other tactics
+variable in the process of discharging the subgoals. The other tactics
 are similar to \lstinline|FORWARD_SET|. They eapply a lemma, and then
-use the same tactics to discharge the resulting subgoals.
-
-This is the real tactic, with much of the middle omitted:
+use the same tactics to discharge the resulting subgoals.  The
+SYMEXE_STEP rtac shown above works, but it is inefficient in
+MirrorCore in two ways: in the course of many steps it
+accumulates unification variables that (even after they are
+instantiated) slow down the MirrorCore system.  Therefore we add
+two lines to advise Mirror Core that it should clean up its internal
+state.  This is the real tactic, with much of the middle omitted:
 
 \begin{lstlisting}
 Definition SYMEXE_STEP Struct_env
@@ -3018,8 +3105,7 @@ Definition SYMEXE_STEP Struct_env
 \end{lstlisting}
 
 
-There are two tactics that we needed to include for performance
-reasons and both deal with the mapping from unification variables to
+Both of the added lines deal with the mapping from unification variables to
 optional values. These are carried around in Rtac inside of a
 computational map. If a unification variable \lstinline|n| maps to
 \lstinline|Some value|, that means that the variable has already been
@@ -3036,28 +3122,29 @@ application. Without cleaning up the data structure, it can rapidly
 grow, hurting performance. Variables that were not created by Mirror
 Core can't be deleted because they exist in a Coq proof goal. Coq
 requires that all unification variables be instantiated for the proof
-to check because allowing uninstantiated variables would be unsound in
-the case that those variables have an uninhabited type. We initially
-omitted these tactics because they should be built into the operations
+to check --- allowing uninstantiated variables would be unsound in
+the case that those variables have an uninhabited type. Ideally this
+cleanup shoul be built into the operations
 of Mirror Core. Coq automatically performs both of these operations
 during Ltac applications, and it is unnecessary bookkeeping to require
 these tactics to be part of user tactics.
 
-These are the general purpose tactics we created to support our proof
-automation. The remaining tactics address a specific challenge that we
-came across. That challenge is managing the way that computation built
-into the logic interacts with the reflective framework. In some cases,
-it is a very smooth interaction, requiring little extra work, but
-other cases required the bulk of the effort we put into creating a
-reflective tactic.
 
 \subsection{Modular Reflection}
+
+We just discussed the general purpose tactics we created to support
+our proof automation. The remaining tactics we created address a specific
+challenge that we came across. That challenge is managing the way that
+computation built into the logic interacts with the reflective
+framework. In some cases, it is a very smooth interaction, requiring
+little extra work, but other cases required the bulk of the effort we
+put into creating a reflective tactic.
 
 We have previously discussed the typechecker (Chapter
 \ref{ch:typechecking}), and a canonical form for assertions (Chapter
 \ref{ch:canonical}) which allows us to do substitutions
 computationally.  Both of these techniques are computational, in that
-the proof proceeds by $\beta$-reduction instead of by the application of
+the proof proceeds by call-by-value $\beta$-reduction instead of by the application of
 inference rules and rewriting.  The MirrorCore framework is also
 computational. This section discusses how these techniques
 interact. There is no interesting interaction between the substitution
@@ -3101,7 +3188,13 @@ should be trivially provable from the old lemma using the lemma
 above. The function \lstinline|func_bool| will now always return a
 constructor, so it can be used fully modularly. The cost here is that
 if func would have returned a new \lstinline|Prop| to for the user to
-solve, \lstinline|func_bool| will be forced to simply return \lstinline|false|.
+solve, \lstinline|func_bool| will be forced to simply return
+\lstinline|false|. This is because \lstinline|func_bool| should be
+sound, when it says \lstinline|true| \lstinline|func| should say
+\lstinline|True| but if the result of \lstinline|func| can be anything
+but \lstinline|True| or \lstinline|False|, it is impossible for
+\lstinline|func_bool| to be complete, because it can only possibly
+return \lstinline|true| or \lstinline|false|.
 
 The other issue is functions whose inputs might contain Coq
 variables. An example of where we run into this is the
@@ -3132,14 +3225,24 @@ rewriting, even though it is likely that \lstinline|T1| will contain
 Coq variables. We expect it to contain Coq variables because it
 represents constraints on a symbolic environment. Any program that
 takes arguments should have at least one Coq variable in
-\lstinline|T1|.
+\lstinline|T1|. As an example:
 
-The problem is that there is no way to represent any data structure
-that contains a Coq variable as a constant. This is because there is
-no way to computationally compare two Coq variables for equality. In
-order to computationally check equality over Coq variables, they must
-first be reified.  Reification is designed so that if it sees the same
-variable twice, it will use the same constructor to represent both
+\begin{lstlisting}
+semax $\Delta$ 
+      (assertD P (localD [_x $\mapsto$ x; _y $\mapsto$ y] []) Q) 
+      (_z = _x + _y)
+      (assertD P (localD [_z $\mapsto$ x + y; _x $\mapsto$ x; _y $\mapsto$ y] []) Q) 
+\end{lstlisting}
+
+In the precondition to show that there \lstinline|_x| evaluates to a
+value, and the postcondition shows why the value in the mapping must
+be arbitrary, and not just a single variable. The problem is that
+there is no way to represent, as a constant, any data structure that contains a Coq
+variable. This is because there is no way to
+computationally compare two Coq variables for equality. In order to
+computationally check equality over Coq variables, they must first be
+reified.  Reification is designed so that if it sees the same variable
+twice, it will use the same constructor to represent both
 instances. The constructors can be computationally compared, so
 variables can be compared in reified syntax.  We will need to do
 comparisons on the variables in the local assertion almost any time we
@@ -3152,8 +3255,8 @@ difficult because of the size of the definition of the reified syntax
 \ref{sec:reification}). 
 
 For example if we have a tree that consists of just a leaf of type val
-\lstinline|@leaf val|, the equivalent reified tree would be
-\lstinline|Inj (inr (Data (fleaf val)))|. It is inconvenient to type
+\lstinline|@leaf val|, the equivalent reifiedf tree would be
+\lstinline|Inj (inr (Data (fleaf val)))|. It is inconvenient to write
 this large match expression every time we want to match a tree with
 leaf. Instead we can define \lstinline|as_tree|.
 
@@ -3200,18 +3303,13 @@ e = (Inj (inr (Data (fleaf t)))).
 
 Checking the proof of this lemma with \lstinline|Qed| takes
 surprisingly long. It can take 2 or more minutes on a modern
-laptop. Again, this is because of the size of the syntax definition
-and the number of cases that must be checked.
+laptop. Again, this is because of the size of the syntax definition.
+Our \lstinline|func'| is made up of almost 90 constructors.
 
 The function and the proof will now have 3 cases. The first have the
 same behavior (only reified) as the \lstinline|leaf| and
 \lstinline|node| cases of the original function. The third case is the
-case where \lstinline|as_tree| returns \lstinline|None|. This doesn't
-mean that the function doesn't typecheck because there is no
-requirement on expressions that a PTree can only be represented by
-those two constructors. There could be another constructor with the
-same denotation, or more likely a PTree could be an application of
-\lstinline|PTree.set| that didn't get simplified. The following is the
+case where \lstinline|as_tree| returns \lstinline|None|. The following is the
 definition of the reified get function
 
 \begin{lstlisting}
@@ -3243,28 +3341,24 @@ PTree (line 3), the reified application of \lstinline|PTree.get| to
 \lstinline|tr| (line 4) is equal to the application of the reified get
 function (\lstinline|get_reif|) to \lstinline|tr| (line 5).  If we
 didn't require a complete function we could instead write
-\lstinline|get_reif|, which is easier to prove correct:
+\lstinline|get_reif'|, which is easier to prove correct:
 
 \begin{lstlisting}
-Fixpoint get_reif (i : positive) (m : expr typ func) ty :  option (expr typ func) :=
+Fixpoint get_reif' (i : positive) (m : expr typ func) ty :  option (expr typ func) :=
 match (as_tree m) with
   | Some (inl (t,l,o,r)) (* Node l o r *)=>
     match i with 
       | xH => Some o
-      | xO ii => get_reif ii l ty 
-      | xI ii => get_reif ii r ty 
+      | xO ii => get_reif' ii l ty 
+      | xI ii => get_reif' ii r ty 
     end
   | Some (inr t) => Some (none_reif t)
   | _ => None
 end.
-\end{lstlisting}
 
-With soundness proof
-
-\begin{lstlisting}
 Lemma get_reif_sound :
 forall typ i tr tus tvs val,
-(get_reif i tr typ) = Some val ->
+(get_reif' i tr typ) = Some val ->
 exprD' tus tvs (tyoption typ) (App (Inj (inr (Data (fget typ i)))) tr)= 
 exprD' tus tvs (tyoption typ) val
 \end{lstlisting}
