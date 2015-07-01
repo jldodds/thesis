@@ -14,6 +14,7 @@
 \usepackage{caption}
 \usepackage{stmaryrd}
 \usepackage{placeins}
+\usepackage{qtree}
 \renewcommand{\lstlistingname}{Figure}
 \input{macros}
 
@@ -3088,7 +3089,7 @@ that some $P'$ exists, which we can do by unifying the unification
 variable in the process of discharging the subgoals. The other tactics
 are similar to \lstinline|FORWARD_SET|. They eapply a lemma, and then
 use the same tactics to discharge the resulting subgoals.  The
-SYMEXE_STEP rtac shown above works, but it is inefficient in
+\lstinline|SYMEXE_STEP| RTac shown above works, but it is inefficient in
 MirrorCore in two ways: in the course of many steps it
 accumulates unification variables that (even after they are
 instantiated) slow down the MirrorCore system.  Therefore we add
@@ -3128,6 +3129,79 @@ cleanup shoul be built into the operations
 of Mirror Core. Coq automatically performs both of these operations
 during Ltac applications, and it is unnecessary bookkeeping to require
 these tactics to be part of user tactics.
+
+\subsection{Computational finite maps in Coq}
+
+It is common in programming languages to want efficient computational
+mappings from keys to values. The data structure should allow for
+getting and setting of mappings:
+
+\begin{lstlisting}
+  Variable get: forall (A: Type), elt -> t A -> option A.
+  Variable set: forall (A: Type), elt -> A -> t A -> t A.
+\end{lstlisting}
+
+These are defined as variables because they are an abstract
+specification of a generic map, rather than an implementation. Here
+\lstinline|A| is the type of the values and \lstinline|elt| is the
+type of the keys. A map also allows for removal, but we
+don't discuss that here, as it is not a feature that we make use
+of. Notice that the \lstinline|get| function is partial, so we can
+always tell if a mapping exists when using the get function.
+
+The following specification describes the interaction between the get and
+set functions:
+
+\begin{lstlisting}
+Hypothesis gsspec:
+    forall (A: Type) (i j: elt) (x: A) (m: t A),
+    get i (set j x m) = if elt_eq i j then Some x else get i m.
+\end{lstlisting}
+
+Again, this is a hypothesis because it is an abstract
+specification. The lemma \lstinline|gsspec| says that if we get
+variable \lstinline|i| after it has been set, we will get the value it
+was just set with, otherwise, we will get the value from the remaining
+tree. This also tells us that if we set a mapping twice, a get will
+return the most recent set.
+
+Coq has an efficient implementation of a finite map called a PTree. In
+a PTree, \lstinline|elt| is instantiated with \lstinline|positive|,
+meaning that \lstinline|positive| is the type of the keys. The
+\lstinline|positive| type represents binary positive integers and is defined as follows:
+
+\begin{lstlisting}
+Inductive positive : Set :=
+    xI : positive -> positive 
+  | xO : positive -> positive 
+  | xH : positive
+\end{lstlisting}
+
+The base case is \lstinline|xH| which represents the most significant
+$1$ digit, subsequent \lstinline|xO| and \lstinline|xI| constructors
+represent $1$ and $0$ moving from left to right. As an example, the
+integer $5$, or $110$ in binary is represented as 
+\lstinline|xO (xI xH)| (from here on, we will generally refer to positives in their
+decimal form). A PTree is a trie over these binary integers. The empty
+PTree, \lstinline|empty| is simply \lstinline|Leaf|, and the PTree
+that represents \lstinline|set 1 v empty| is 
+\lstinline|Node Leaf v Leaf|. 
+
+\Tree [.{Some v} Leaf Leaf ]
+
+\noindent If we then perform \lstinline|set 5 p|,
+we get the tree
+
+
+\Tree [.{Some v} [.None Leaf {Some p} ] Leaf ]
+
+by starting at the root, then matching the value of 5 
+(\lstinline|x0 (xI xH)|) and going left when we see an \lstinline|x0|
+and right when we see \lstinline|xI| when we see \lstinline|xH| we are
+done, and we place the value in that spot. \lstinline|get| progresses in the
+same way, returning the value of the node it stops on when it sees
+\lstinline|xH|, or \lstinline|None| when it hits a \lstinline|Leaf|.
+
 
 
 \subsection{Modular Reflection}
@@ -3234,22 +3308,31 @@ semax $\Delta$
       (assertD P (localD [_z $\mapsto$ x + y; _x $\mapsto$ x; _y $\mapsto$ y] []) Q) 
 \end{lstlisting}
 
-In the precondition to show that there \lstinline|_x| evaluates to a
-value, and the postcondition shows why the value in the mapping must
-be arbitrary, and not just a single variable. The problem is that
-there is no way to represent, as a constant, any data structure that contains a Coq
-variable. This is because there is no way to
-computationally compare two Coq variables for equality. In order to
-computationally check equality over Coq variables, they must first be
-reified.  Reification is designed so that if it sees the same variable
-twice, it will use the same constructor to represent both
+Both assertions have a \lstinline|T1| where the values are Coq
+variables. This is because \lstinline|_x| maps to a symbolic, or
+quantified value.  The postcondition shows why the value in the
+mapping must be arbitrary, and not just a single variable.  The
+problem is that there is no way to represent, as a constant, any data
+structure that contains a Coq variable. This is because there is no
+way to computationally compare two Coq variables for equality.
+
+ In
+order to computationally check equality over Coq variables, they must
+first be reified.  Reification is designed so that if it sees the same
+variable twice, it will use the same constructor to represent both
 instances. The constructors can be computationally compared, so
 variables can be compared in reified syntax.  We will need to do
 comparisons on the variables in the local assertion almost any time we
 solve an entailment, so we will need to reify the variables.
 
+During symbolic execution, we want the function application \lstinline|PTree.get t i|,
+to run the lookup-in-tree algorithm as a functional
+program, replacing the expression with the value bound to
+\lstinline|i| in the tree \lstinline|t|. Because the trees
+\lstinline|T1| and \lstinline|T2| must be reified constructor
 What that means is that we must rewrite \lstinline|PTree.set| and
-\lstinline|PTree.get| to operate on fully reified PTrees. This can be
+\lstinline|PTree.get| to operate on fully reified PTrees. 
+ This can be
 difficult because of the size of the definition of the reified syntax
 (particularly \lstinline|func| discussed in section
 \ref{sec:reification}). 
@@ -3454,7 +3537,8 @@ Ltac run_rtac reify term_table tac_sound reduce :=
 	                | clear sv ]
 	            | Solved ?s =>
 	              exact_no_check (@run_rtac_Solved tbl (tac tbl) s namee (tac_sound tbl) 
-	                (@eq_refl (Result (CTop nil nil)) (Solved s) <: run_tac' (tac tbl) (GGoal goal) = Solved s))
+	                (@eq_refl (Result (CTop nil nil)) (Solved s) <:
+                          run_tac' (tac tbl) (GGoal goal) = Solved s))
 	            | Fail => idtac "Tactic" tac "failed."
 	            | _ => idtac "Error: run_rtac could not resolve the result from the tactic :" tac
 	          end
@@ -3769,7 +3853,6 @@ are assigning into and avoid introducing an existential at each
 step. 
 We show the performance of Ltac and
 Rtac as $n$ increases in Figure \ref{fig:chart}.
-
 \begin{figure}
 \vspace{-2ex}
 \includegraphics[width=\textwidth]{chart.pdf}
@@ -3961,7 +4044,6 @@ fast enough to use on a wide range of real programs. The use of the
 reified tactics as part of the verification of SHA256 show that they
 can make a strong contribution on the road to verification of
 libraries that are essential to the security and safety of the world.
-
 
 \bibliographystyle{plain}
 \bibliography{appel}
