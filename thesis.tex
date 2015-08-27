@@ -49,8 +49,8 @@ our ``mostly sound'' type system, computationally efficient finite-map
 data structures, and the MirrorCore framework for computationally
 reflected logics.  Measurements show a 40$\times$
 performance improvement.}
-\acknowledgements{Thank you very much.}
-\dedication{To myself.}
+%\acknowledgements{Thank you very much.}
+%\dedication{To myself.}
 
 
 
@@ -3205,7 +3205,7 @@ over program identifiers.
 
 
 \subsection{Modular Reflection}
-\ref{sec:modular}
+\label{sec:modular}
 We just discussed the general purpose tactics we created to support
 our proof automation. The remaining tactics we created address a specific
 challenge that we came across. That challenge is managing the way that
@@ -4035,7 +4035,7 @@ still reflects many back to the user to solve. Currently, a user
 proving a C program correct will spend most of their time proving
 these entailments, and rewriting their assertions to ease in this
 solving. Entailments can be solved (or partially solved) by the Ltac
-\lstinline|entailer| tactic \cite[Chapter 26]{plcc}, but it is slow,
+\lstinline|entailer| tactic \cite[Chapter 26]{appel14:plcc}, but it is slow,
 and not as complete as a user might hope.  It should be possible to
 use the facilities of Coq and Mirror Core to implement
 entailment-solving (or entailment simplification) much faster in a

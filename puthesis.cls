@@ -22,7 +22,7 @@
 \RequirePackage{setspace}
 % the next two lines are needed to make packages using xcolor happy
 \RequirePackage{xcolor}
-\def\current@color{ Black}
+%\def\current@color{ Black}
 \newcounter{subyear}
 \setcounter{subyear}{\number\year}
 \def\submitted#1{\gdef\@submitted{#1}}
@@ -46,7 +46,7 @@
 \makelot\clearpage\makelof\clearpage\makelos
 \clearpage\mainmatter}
 \def\@submitted{\@submittedmonth~\@submittedyear}
-\def\@dept{Mathematics}
+\def\@dept{Computer Science}
 \def\@deptpref{Department of}
 \def\departmentprefix#1{\gdef\@deptpref{#1}}
 \def\department#1{\gdef\@dept{#1}}
