@@ -9610,24 +9610,6 @@ month=may, year=2014}
   publisher={Springer}
 }                  
 
-@book{Bertot:2010:ITP:1965123,
- author = {Bertot, Yves and Castran, Pierre},
- title = {Interactive Theorem Proving and Program Development: Coq'Art The Calculus of Inductive Constructions},
- year = {2010},
- isbn = {3642058809, 9783642058806},
- edition = {1st},
- publisher = {Springer Publishing Company, Incorporated},
-} 
-
-@book{chlipala2011certified,
-  title={Certified programming with dependent types},
-  author={Chlipala, Adam},
-  volume={20},
-  number={11},
-  year={2011},
-  publisher={MIT Press}
-}
-
 @InProceedings{chlipala11:pldi,
 author = {Adam Chlipala},
 title = {Mostly-Automated Verification of Low-Level Programs in Computational Separation Logic},

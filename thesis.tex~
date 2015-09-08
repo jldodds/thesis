@@ -72,25 +72,24 @@ noncritical code that can fail without causing harm.  But when critical
 code fails, it can be catastrophic. Space projects that cost hundreds
 of millions of dollars have failed due to problems with software
 \cite{polarlander, marsorbit}, radiation device software has caused
-overdoses in cancer patients \cite{therac}, and millions of cars have
-been recalled to fix software bugs \cite{toyotarecall}. Those scenarios
+overdoses in cancer patients\cite{therac}, and millions of cars have
+been recalled to fix software bugs\cite{toyotarecall}. Those scenarios
 are only caused by bugs; far more systems can fail when a malicious
 user attacks them. As an example, a brand of refrigerators was found
 to have been taken over to send spam e-mail \cite{fridgenet}.
 
 To believe that a C program will run correctly we must first believe a
 number of other things. There are a number of components that we will
-need to be able to \emph{trust} in order to trust our C program. We
-need to fully understand the program itself, and believe that it will
-do what we want it to, as well as believing that our model of the
-programming language reflects what C programs actually do. We also
-need to believe that when the C code is translated into machine
-language, the generated machine language has the same behavior as the
-original program. Finally we need to believe that the machine
-executing the machine language is doing the correct thing. We call the
-collection of things we must trust the \emph{trusted computing
-  base}. In general, the larger the trusted computing base is, the
-harder it is to be confident that the program is correct.
+need to be able to \emph{trust} in order to trust our C program. We need
+to fully understand the program itself, and believe that it will do
+what we want it to. We also need to believe that when
+the C code is translated into machine language, the generated machine
+language has the same behavior as the original program. Finally we
+need to believe that the machine executing the machine language is
+doing the correct thing. We call the collection of things we must
+trust the \emph{trusted computing base}. In general, the larger the
+trusted computing base is, the harder it is to be confident that the
+program is correct.
 
 The need for trust follows a chain. It starts with the C program at
 the top, the most human understandable part of the chain, and moves
@@ -115,21 +114,17 @@ because often the theorem proved is useful to many people even if the
 proof itself is difficult for them to understand. If you want to use a
 pen-and-paper proof that you can't understand, you must trust the
 process of peer review. 
-
 A proof assistant, on the other hand, forces proof statements to be
 written in well defined logic, making theorem statements completely
-unambiguous. This is not to say that it is impossible to make mistakes
-in specifications, it is still possible to write meaningless or
-incorrect specifications. What it does mean is that once a
-specification is written down, it has a single meaning with no
-ambiguity.  The proof assistant often provides tools for building
+unambiguous. The proof assistant often provides tools for building
 proofs. These tools write proofs using well defined inference rules.
-The tools for building proofs don't need to be trusted. All that needs
-to be trusted is a part of the proof assistant that checks the proof
-when it is created. This is analogous to not needing to trust the
-person writing a pen and paper proof, as long as you can check the
-proof that they wrote. In summary, if a proof is stated and proved in
-a proof assistant, to believe the proof we must trust:
+The tools for building proofs don't need to be
+trusted. All that needs to be trusted is a part of the proof assistant
+that checks the proof when it is created. This is analogous to not
+needing to trust the person writing a pen and paper proof, as long as
+you can check the proof that they wrote. In summary, if a proof is
+stated and proved in a proof assistant, to believe the proof we must
+trust:
 
 \begin{enumerate}
   \item The statement of the theorem being proved, and
@@ -254,38 +249,28 @@ tactics can still make progress on the proof.
 
 \chapter{Computation in Coq}
 \label{ch:computation}
-
-There are two main categories for objects in Coq. The first is
-\lstinline|Prop|, which is the sort for propositions in Coq. These
-propositions can include quantifiers ($\forall$, $\exists$) and
-implication. New predicates can be defined as inductive relations or
-built up using other predicates. 
-
-The second sort of Coq object is \lstinline|Type| which contains data
-structures that can be computed on by Gallina, Coq's built in
-functional language. These data structures can be defined inductively
-and Gallina has the ability to define and match on these inductive
+The Coq proof assistant has a built-in functional programming language
+called Gallina with the ability to define and match inductive
 data structures. The type boolean, for example can be defined:
 
 \begin{lstlisting}
-Inductive boolean : Type :=
+Inductive boolean :=
 | true
 | false.
 \end{lstlisting}
 
 So \lstinline|boolean| is a type that can be constructed by either
 \lstinline|true| or \lstinline|false|; and when given a
-\lstinline|boolean|, a function can decide which of the two it is. 
-This can be contrasted with the definition of \lstinline|True| and
-\lstinline|False|, which have the sort \lstinline|Prop| instead of
-\lstinline|Type|.
-Prop is a sort, not an inductively defined type in Coq, so it can't be matched
+\lstinline|boolean|, a function can decide which of the two it is. Now
+we can look at the definition of \lstinline|True| and
+\lstinline|False|, which are in the type
+\lstinline|Prop| instead of \lstinline|boolean|. Prop is not an
+inductively defined type in Coq, so it can't be matched
 against. Instead the definitions of \lstinline|True| and \lstinline|False|
 are
 
 \begin{lstlisting}
-Inductive True : Prop := 
- | I : True.
+Inductive True : Prop := I : True.
 \end{lstlisting}
 \begin{lstlisting}
 Inductive False : Prop.
@@ -297,17 +282,16 @@ the same proposition.
 
 \noindent 
 Gallina programs cannot pattern-match over propositions; they can
-compute only over inductive data structures, and \lstinline|Prop| is not
+compute only over inductive data structures, and Prop is not
 inductive. That doesn't mean that it is impossible to reason about
 things of type \lstinline|Prop| in Coq. Instead of using Gallina to
 operate on \lstinline|Prop|, Coq has tactics, which exist almost
-exclusively for that reason. The \emph{tactic language}, Ltac, can parse
+exclusively for that reason. The \emph{tactic language} can parse
 (pattern-match on) propositions. A tactic in Coq is a program that
 manipulates a proof state while generating a proof object recording
 its activity. A Coq proof state is a goal (e.g., \lstinline|Prop| prop
 to be proved), along with a number of quantified variables of any
-type, and a number of hypothesis of type \lstinline|Prop|. New tactics
-can be created by combining other tactics using the \lstinline|Ltac| language.
+type, and a number of hypothesis of type \lstinline|Prop|. 
 
 This design means that tactics don't need to be sound. If they produce
 a proof that checks, it doesn't matter how the proof was
@@ -318,21 +302,19 @@ will have performance that matches the complexity of the proof
 search. A tactic that continuously makes modifications to a proof
 state, with each modification recorded to the proof object, is likely
 to experience performance worse than what you would expect given the
-number of operations performed. This is because the proof term that
-the tactic builds grows with every operation applied. In these cases,
-the overhead of keeping and modifying the proof object (which can take
-up substantial amounts of memory) can lead to very slow tactic
-performance.
+number of operations performed. Unfortunately, the second case is
+reasonably common. In these cases, the overhead of keeping and
+modifying the proof object (which can take up substantial amounts of
+memory) can lead to very slow tactic performance.
 
 Logics such as VST's verifiable C program logic are in
 \lstinline|Prop|. Logics in Prop are said to be shallowly embedded.
-Instead of a ``deep embedding" --- inductively defined syntax
-separated from any semantic interpretation--a shallow embedding
-defines each new operator as a semantic predicate in the language of
-propositions.  Some systems such as Appel's VeriSmall
-\cite{appel11:cpp} are deeply embedded, meaning they define their own
-syntax, along with a denotation that gives meaning to that syntax in
-Coq's logic.
+Instead of a ``deep embedding" --- syntax separated from any semantic
+interpretation--a shallow embedding defines each new operator as a
+semantic predicate in the language of propositions.  Some systems such
+as Appel's VeriSmall \cite{appel11:cpp} are deeply embedded, meaning
+they define their own syntax, along with a denotation that gives
+meaning to that syntax in Coq's logic.
 
 Shallow and deep embeddings have tradeoffs in two areas:
 
@@ -430,7 +412,7 @@ This syntax mirrors the syntax of a Coq goal, it means the same thing
 but we can compute on it inside of a Gallina program. We define it in
 two levels (\lstinline|expr| and \lstinline|expr'|) so that every
 \lstinline|expr| has a denotation. This is not a requirement of a
-deep embedding, but it simplifies the other steps.
+reified syntax, but it simplifies the other steps.
 
 When we apply
 the denotation function to the syntax and get a \lstinline|Prop| back,
@@ -445,11 +427,9 @@ Lemma add_sym' : forall a b,
 expr'_denote (add a b) = expr'_denote (add b a)
 \end{lstlisting}
 
-If the denotation of a deep embedding is equal to a shallow embedding,
-we say that the deep embedding is a \emph{reification} of the shallow.
-To use \lstinline|add_sym| we need a reified version of our original
-goal.  To reify the goal, we create a tactic called a reifier. This
-must be done using a tactic because tactics have the ability to match
+To use this we need a \emph{reified} version of our original goal. To
+reify the goal, we create a tactic called a reifier. This must be done
+using a tactic because tactics have the ability to match
 \lstinline|Prop|, while Gallina does not. The following is a
 reification of our original goal:
 
@@ -555,9 +535,10 @@ The technique of computational reflection in Coq combines the
 interactivity of a shallow embedding with the efficiency of a deep
 embedding by performing as much automated work as possible on the deep
 embedding, and returning a readable shallow embedding goal to the user
-when interaction is required. Proof by reflection is not a new
-technique, further discussion of proof by
-reflection can be found in \cite{chlipala2011certified, Bertot:2010:ITP:1965123}.
+when interaction is required.
+
+\section{Computational reflection}
+\label{sec:reflection}
 
 Proof by reflection is the technique of using proved-sound computation
 on a deep embedding to make progress in a proof. To use reflection on
@@ -814,8 +795,8 @@ function in \lstinline{environ->val}.
 
 \section{C light}
 \label{sec:clight}
-Our program logic is for C, but the C programming language has
-features that make designing a Hoare logic difficult: \emph{side effects within subexpressions} 
+Our program logic is for C, but the C programming language has features that are
+unfriendly to Hoare logic: \emph{side effects within subexpressions} 
 make it impossible to simply talk about ``the value of $e$''  and \emph{taking
 the address of a local variable} means that one cannot reason straightforwardly about
 substituting for a program variable
@@ -889,68 +870,14 @@ Fixpoint typecheck_expr ($\Delta$ : tycontext) (e: expr) : tc_assert :=
 
 \noindent This function traverses expressions emitting \emph{reified}
 conditions that ensure that the expressions will evaluate to a value
-in a correctly typed environment. These reified functions belong to
-the type \lstinline|tc_assert|:
-
-\begin{lstlisting}
-Inductive tc_assert :=
-| tc_FF: tc_error -> tc_assert (* False *)
-| tc_andp': tc_assert -> tc_assert -> tc_assert
-| tc_isptr: expr -> tc_assert (* the expression is a pointer *)
-...
-\end{lstlisting}
-
-On top of this we define assertions that are programs that
-automatically simplfy once they are applied to their subexpressions:
-
-\begin{lstlisting}
-Definition tc_andp (a1: tc_assert) (a2 : tc_assert) : tc_assert :=
-match a1 with
-| tc_TT => a2
-| tc_FF e => tc_FF e
-| _ => match a2 with
-      | tc_TT => a1 
-      | tc_FF e => tc_FF e
-      | _ => tc_andp' a1 a2
-      end
-end. 
-\end{lstlisting}
-
-The function \lstinline|tc_andp|, for example, will automatically
-simplify if it is applied to either \lstinline|tc_TT| or
-\lstinline|tc_FF|. 
-
-A number of facts can be determined computationally. For example we
-can always determine if a value is an integer by simply examining its
-type in the program: 
-
-\begin{lstlisting}
-Definition is_int_type (ty : type) : bool  := 
-match ty with
-| Tint _ _ _ => true
-| _ => false
-end.
-\end{lstlisting}
-
-These boolean typechecking functions can be injected into
-\lstinline|tc_assert| using \lstinline|tc_bool|:
-
-\begin{lstlisting}
-Definition tc_bool (b : bool) (e: tc_error) :=
-if b then tc_TT else tc_FF e.
-\end{lstlisting}
-
-Because we are always typechecking ground terms that came directly
-from a compiled program, using \lstinline|tc_bool| in conjunction with
-\lstinline|tc_andp| will always result in a function whose result is
-either \lstinline|False| or where the boolean fact has been eliminated.
-
+in a correctly typed environment. The typechecker is actually a
+mutually recursive function: one function typechecks r-values and the
+other typechecks l-values.  Here, we only describe the type-checking
+of r-value expressions; the type-checking of l-values is similar.
 Although CompCert's operational semantics are written as an inductive
 relation in Coq, it also has computational parts. For example,
-CompCert has functions to help typecheck mathematical
-operations by determining the type of the result. These functions are
-called \emph{classification} functions because they classify the types
-of operators. The following
+CompCert \emph{classification} functions help typecheck mathematical
+operations by determining the type of the result. The following
 function leverages the classification function to typecheck binary
 operations:
 
@@ -999,15 +926,12 @@ result of expression evaluation depends on the environment:
 
 \begin{lstlisting}
 (* Global-variable environment *)
-(* A mapping from variables to memory locations *)
-Definition genviron := Map.t block. 
+Definition genviron := Map.t block.
 
 (* Adressable local-variable environment *)
-(* A mapping from variables to memory locations and c types *)
 Definition venviron := Map.t (block * type).
 
 (* Temporary (nonadressable local variable) environment *)
-(* A mapping from variables to C values *)
 Definition tenviron := Map.t val.
 
 Inductive environ : Type :=
@@ -1016,11 +940,9 @@ Inductive environ : Type :=
 
 We use a simple linear map \lstinline|Map.t| (which is equivalent to
 \lstinline|(ident -> option val)|) for this environment because in
-practice the environment will be a quantified variable. It will simply
-be a variable with no underlying implementation. This means that
-performance will be unaffected by the implementation of the environment.
-The type
-\lstinline|block| refers to a block of memory, CompCert's address into the beginning of a
+practice we expect it to always be an abstract quantified variable,
+meaning the implementation won't affect performance. The type
+\lstinline|block| is CompCert's address into the beginning of a
 malloc'ed block.
 
 To guarantee that certain expressions will evaluate, we control what
@@ -1041,7 +963,7 @@ of C types that appear in Clight programs.
 The elements of the type context are
 \begin{itemize}
   \item a mapping from temp-var names to type and initialization
-  information (temp-vars are simply nonaddressable---ordinary---local variables),
+  information (recall that temp-vars are simply nonaddressable---ordinary---local variables),
   \item a mapping from (addressable) local variable names to types,
   \item a return type for the current function, and
   \item a mapping from global variable names to types
@@ -1059,8 +981,7 @@ amount of time. Separating these two allows us to do the computations
 we discuss in Chapter \ref{ch:reflection}. 
 
 A temporary variable is a (local) variable whose address is not taken
-anywhere in the procedure. A varible is taken if the C address of
-(\lstinline|&|) operator is used. Unlike local and global variables, these
+anywhere in the procedure.  Unlike local and global variables, these
 variables can not alias---so we can statically determine exactly when
 their values are modified. If the typechecker sees that a temporary
 variable is initialized, it knows that it will stay initialized. The
@@ -1104,7 +1025,7 @@ if \lstinline{true} guarantees all of the following:
   predicates.
 \item If the type context contains type information for a global
   variable, the global environment contains a global variable of
-  matching type. 
+  matching type. This environment also gives only the address.
 \item If the type context contains type information for a global
   variable, either
   \begin{itemize}
@@ -1205,7 +1126,7 @@ typechecks or mention $\Delta$ explicitly in preconditions.  Our
 special \emph{rule of consequence} illustrates what we always know about $\Delta$:
 \begin{mathpar}
 \inferrule{
-(\mathsf{typecheck\_environ} ~ \Delta \wedge P) \vdash P'\qquad
+\mathsf{typecheck\_environ} \Delta \wedge P\vdash P'\qquad
 \tripleD{\Delta}{P'}{c}{R}}
 {\tripleD{\Delta}{P}{c}{R}}
 \end{mathpar}
@@ -1223,13 +1144,13 @@ yet. This is because in our logic, we hide the existence of $\rho$ from the
 user, since it is strictly symbolic and never updated. In fact if we say
 
 \begin{mathpar} 
-\mathsf{typecheck\_environ} ~ \Delta \wedge P\vdash P'
+\mathsf{typecheck\_environ} \Delta \wedge P\vdash P'
 \end{mathpar}
 
 \noindent it is equivalent to:
 
 \begin{mathpar} 
-\forall \rho. ~ \mathsf{typecheck\_environ} ~ \Delta ~ \rho \wedge P \rho \vdash P' \rho
+\forall \rho. \mathsf{typecheck\_environ} \Delta \rho \wedge P \rho \vdash P' \rho
 \end{mathpar}
 
 this means that we can hide the fact that the environment always
@@ -1343,8 +1264,7 @@ In fact, the entire proof could easily be completed by one tactic:
 repeat (forward; try solve[entailer!])
 \end{lstlisting}
 
-The function \lstinline|semax_body| creates a Hoare triple, called
-\lstinline|semax| in our logic, for a
+The function \lstinline|semax_body| creates a Hoare triple for a
 function body given a list of global variable specifications
 (\lstinline|Vprog|, the empty list), a list of global function
 specifications (\lstinline|Gtot|, list of this function and main), The
@@ -1353,7 +1273,7 @@ syntactic function declaration (with parameters and function body)
 specification (\lstinline|assign_spec|, the Coq version of the triple
 shown above). The tactic \lstinline|start_function| unfolds
 \lstinline|semax_body| and ensures that the precondition is in a
-usable form.  
+usable form.  The relation \lstinline|semax| defines the Hoare triple.
 
 In the following examples, C light AST is shown C-like syntax
 in the lines marked \lstinline|(* pseudocode *)|. Assertions are in a
@@ -1368,11 +1288,10 @@ empty \lstinline|SEP| means \lstinline|emp|, or the empty heap.
 \begin{lstlisting}
   $\Delta$ := initialized _c (func_tycontext f_assigns Vprog Gtot) : tycontext
   ============================
-   semax $\Delta$  
-     (PROP  () $$ 
-      LOCAL (`eq (eval_id _c) (eval_expr(_a * _a)); (`eq (eval_id _a) v)) $$ SEP ()) 
-     (_b = _c / 3; return _b;)   (* pseudocode standing for C-light AST *) 
-     (function_body_ret_assert tint (_a * _a / 3)  = retval)
+   semax $\Delta$  (PROP  () $$ 
+   LOCAL (`eq (eval_id _c) (eval_expr(_a * _a)); (`eq (eval_id _a) v)) $$ SEP ()) 
+      (_b = _c / 3; return _b;)   (* pseudocode standing for C-light AST *) 
+      (function_body_ret_assert tint (_a * _a / 3)  = retval)
 \end{lstlisting}
 
 Above is the state after applying \lstinline|forward| for the first
@@ -1388,14 +1307,12 @@ return value and state must satisfy the given predicate; and any other
 exit from the command (break, continue, fall-through) is forbidden.
 
 The \lstinline|forward| tactic chooses a Hoare-logic inference rule to
-apply, based on the precondition and the command. It can make most of
-its decisions using only the command, but occasinally it takes the
-precondition into account as well. For example, in general,
-\lstinline|forward| uses the Floyd assignment rule that existentially
-quantifies the ``old'' value of the variable being assigned to (in
-this case \lstinline|c|). It needs to do this because otherwise we
-would lose information from our precondition by losing the old value
-of \lstinline|c|. If the variable doesn't appear in the precondition,
+apply, based on the precondition and the command. In general, it uses
+the Floyd assignment rule that existentially quantifies the ``old''
+value of the variable being assigned to (in this case
+\lstinline|c|). It needs to do this because otherwise we would lose
+information from our precondition by losing the old value of
+\lstinline|c|. If the variable doesn't appear in the precondition,
 however, the existential can be removed because it will never be
 used. The \lstinline|forward| tactic checks to see if it needs to
 record the old value of the variable or not. In this case, it sees
@@ -1450,8 +1367,7 @@ given the left hand side. This entailment is asking us to show that
 the expression on the right hand side of the assignment typechecks,
 and that the id on the left side typechecks. We would expect to see
 that: $c$ is initialized, $3\neq 0$ and $\neg(c=\mathsf{min\_int}
-\wedge 3 = -1)$. The \lstinline|local| operator injects a pure
-proposition into our separation logic.
+\wedge 3 = -1)$.
 
 \emph{Why is it useful to have} \lstinline{tc_environ $\Delta$}?
 This entailment is \emph{lifted} (and quantified) over an abstract
@@ -1473,6 +1389,11 @@ uninitialized -- in these cases, the value
 be in scope; in this case, (\lstinline|eval_id _a $\rho$|) won't even exist. In
 an environment $\rho$ that typechecks with respect to some context
 $\Delta$, however, we can bring this way of thinking back to the user.
+Our automatic \lstinline|go_lower| tactic, after introducing $\rho$,
+uses the \lstinline{name} hints to replace every use of
+(\lstinline|eval_id _a $\rho$|) with simply \lstinline{a}, \emph{and}
+it proves a hypothesis that the value \lstinline|a| has the expected
+type.  
 
 In the case of an \lstinline{int}, the \lstinline|go_lower| tactic does one step more:
 knowing that the value (\lstinline|eval_id _a $\rho$|) typechecks
@@ -1646,7 +1567,7 @@ Or equivalently, hiding the environment by using the lifting operator:
 `eq (eval_id $x$) `4
 \end{lstlisting}
 
-The second form is advantageous, because many Coq tactics are unable to
+The second form is advantageous, because Coq tactics are unable to
 perform operation inside of binders, making the first form very
 difficult to work with in proofs. Although the second form is
 equivalent to the first, Coq automation has a much easier time dealing
@@ -1656,8 +1577,7 @@ Simply referring to the environment is not enough to specify a C
 program because C programs can also refer to the heap, which is not
 specified by the environment. An assertion in
 VST's logic can be any semantic predicate of type 
-\lstinline|environ -> mpred|.  Memory predicate, or \lstinline|mpred| 
-is the type of separation-logic
+\lstinline|environ -> mpred|.  \lstinline|mpred| is the type of separation-logic
 assertions over C memory. Separation logic has operators that make it
 particularly convenient to reason about the absence of pointer
 aliasing in programs. It does this by providing the 
@@ -1790,7 +1710,7 @@ shows how \lstinline|subst| is used in our forward assignment rule:
 
 \begin{lstlisting}
 $\inference[semax\_set\_forward]{}{
-\Delta\vdash\triple{P}{~x:=e~}{\exists v.\,x=(e[v/x])\wedge P[v/x]}
+\Delta\vdash\triple{\later P}{~x:=e~}{\exists v.\,x=(e[v/x])\wedge P[v/x]}
 }$
 
 Axiom semax_set_forward: $~~$forall $\Delta$ ($P$: environ->mpred) ($x$: ident) ($e$: expr),
@@ -1844,7 +1764,7 @@ Lemma subst_sepcon: forall i v (P Q: environ->mpred),
 \end{lstlisting}
 
 Fortunately, we don't need a lemma for every function that might
-appear in assertions. Lifted functions (for example \lstinline|`eq|)
+appear in assertions. Lifted functions (for example \lstinline|`eq|
 can't do anything with the environment, they can only pass it on to
 their arguments, so by creating a general rule for lifted functions we
 cover most of the functions that we use, and also most functions that
@@ -1907,7 +1827,7 @@ $\PROP$/$\LOCAL$/$\SEP$:
 \begin{lstlisting}
 Definition assertD (P : list Prop) (Q : list (environ -> Prop)) 
                    (R : list mpred) := 
-PROP P (LOCAL Q (SEP (map (liftx) R))).
+PROPx P (LOCALx Q (SEPx (map (liftx) R))).
 \end{lstlisting}
 
 All that \lstinline|assertD| does is change the type of \lstinline|R| from 
@@ -2040,7 +1960,7 @@ to canonical expressions. We use this technique to create
 environment:
 
 \begin{lstlisting}
-Fixpoint msubst_eval_expr (T1: PTree.t val) (T2: PTree.t (val * type)) (e: Clight.expr) : option val :=
+Fixpoint msubst_eval_expr (T1: PTree.t val) (T2: PTree.t vardesc) (e: Clight.expr) : option val :=
   match e with
   | Econst_int i ty => Some (Vint i)
   | Etempvar id ty => PTree.get id T1
@@ -2212,10 +2132,10 @@ type of assertion more difficult than what we did in the $\LOCAL$.
 
 
 Our proof (semi)automation has been implemented by a program that we
-call ``floyd'', written in Coq's Ltac language. Ltac allows for the
-implementation of such a system, but because it records all of its
-operations in proof objects, gets very slow for large developments
-like the ones in VST proofs of C programs.
+call ``floyd'', written in Coq's Ltac language.  Ltac is an interpreted,
+dynamically typed, backtracking language with powerful
+pattern-matching on proof goals, that produces a trace of its
+(nonbacktracked) execution in the form of a proof object.
 
 We improve performance by instead writing our proof automation in
 Gallina: this is a compilable, statically typed, non-backtracking
@@ -2257,7 +2177,7 @@ $\PROP$/$\LOCAL$/$\SEP$ form in Chapter \ref{ch:canonical}:
 \begin{lstlisting}
 ==================
 semax $\Delta$ 
-  (PROP () LOCAL (temp _x 2; temp _y y) SEP (data_at _z 3)) 
+  {PROP () LOCAL (temp _x 2; temp _y y) SEP (data_at _z 3)} 
      w = 3;
      y = 2 / y; 
      x = *z;
@@ -2265,7 +2185,7 @@ semax $\Delta$
      { q = 0; }
      else
      { q = 1; }
-  (POST)
+  {POST}
 \end{lstlisting}
 
 and with the application of a single tactic, called
@@ -2285,38 +2205,18 @@ triple that \lstinline|rforward| was unable to progress through:
 \begin{lstlisting}
 ==================
 semax $\Delta'$ 
-  (PROP () LOCAL (temp _x 3; temp _y (2 / y); temp w 3) SEP (data_at _z 3)) 
+  {PROP () LOCAL (temp _x 3; temp _y (2 / y); temp w 3) SEP (data_at _z 3)} 
      if (y) 
      { q = 0; }
      else
      { q = 1; }
-  (POST)
+  {POST}
 \end{lstlisting}
 \noindent currently \lstinline|rforward| stopped here because
 (currently) it can only progress through basic blocks.
 
 \section{Reification and Denotation}
 \label{sec:reification}
-
-At the heart of Mirror Core is a syntax that is capable of
-representing any Coq term that is not dependently typed:
-
-\begin{lstlisting}
-  Inductive expr typ func: Type :=
-  | Var : var -> expr  (* an identifier using de Bruijn indices. *)
-  | Inj : func -> expr (* injection of a function into the lambda calculus *)
-  | App : expr -> expr -> expr (* left expr applied to right expr *)
-  | Abs : typ -> expr -> expr (* abstraction. $\lambda (x : t). e$ *)
-  | UVar : uvar -> expr. (* unification variable, index into a mapping
-                            environment *)
-\end{lstlisting}
-
-The \lstinline|expr| type is essentially a lambda calculus where we
-can inject reified types (using the \lstinline|typ| parameter, and
-functions (using the \lstinlin|func| parameter). For a thorough
-discussion of this \lstinline|expr|, along with its denotation
-function, see \cite[section~3.1]{malecha:thesis}
-
 The first step in using Mirror Core is to create a tactic for
 reification. Mirror Core includes a reification plugin written in
 OCaml\footnote{One can write a reifier purely in the Ltac language,
@@ -2614,7 +2514,24 @@ the argument means that it will be passed a Coq bool as opposed to a
 reified bool. \lstinline|id| is just the identity function, but its
 presence tells the reification tactic how to process the value that is
 supplied to the function, in this case, \lstinline|id| says that there
-is no further processing required.  
+is no further processing required.  The \lstinline|Inj| constructor
+allows an injection of a reified function into Mirror Core's lambda
+calculus. This extensible, deeply embedded language of reified terms
+is MirrorCore's \lstinline{expr} type
+(not to be confused with CompCert's expr type):
+
+\begin{lstlisting}
+  Inductive expr : Type :=
+  | Var : var -> expr  (* an identifier using de Bruijn indices. *)
+  | Inj : func -> expr (* injection of a function into the lambda calculus *)
+  | App : expr -> expr -> expr (* left expr applied to right expr *)
+  | Abs : typ -> expr -> expr (* abstraction. $\lambda (x : t). e$ *)
+  | UVar : uvar -> expr. (* unification variable, index into a mapping
+                            environment *)
+\end{lstlisting}
+
+For a thorough discussion of this \lstinline|expr|, along with its
+denotation function, see \cite[section~3.1]{malecha:thesis}
 
 The next rule demonstrates reifying a polymorphic equation. Of note is
 the type of the argument \lstinline|a|. It is 
@@ -2878,19 +2795,9 @@ encapsulate all of the reflective behavior.
 
 A Mirror Core tactic, called an \emph{Rtac} \cite[chapter
   6]{malecha:thesis}), is a Gallina program that transforms a reified
-proof state into a reified result. This result can be one of three things:
-
-\begin{enumerate}
-\item \lstinline|Solved| means
-  that the goal can soundly be discharged,
-\item \lstinline|Fail| means that the tactic didn't make any progress,
-  and the goal should not be changed, and
-\item \lstinline|More e'| means that the tactic made progress but
-  didn't solve the goal. The new goal should be \lstinline|e'|.
-
-To be used as a tactic, these programs from expressions to results
-must be proved sound with respect to the Coq implication. That is, for
-tactic \lstinline|tac| (greatly simplified):
+proof state into a new reified proof state. To be used as a tactic,
+these programs must be proved sound with respect to the Coq
+implication. That is, for tactic \lstinline|tac| (greatly simplified):
 
 \begin{lstlisting}
 Definition rtac_sound tac := 
@@ -2902,12 +2809,7 @@ Where \lstinline|goalD| is a denotation function for reified proof
 goals. We have simplified this presentation by leaving out the variables
 and unification variables that might be created or instantiated by the
 execution of the tactic. These variables significantly increase the
-complexity of \lstinline|rtac_sound|, but the meaning is approximately
-the same. Throughout this chapter, we have removed references to these
-variables and environments for the sake of readability. All of the
-tactics that were written for VST ignore these variables, simply
-passing their contents on so that they can be used by built-in Mirror
-Core tactics that do modify them. 
+complexity of \lstinline|rtac_sound|, but the meaning is approximately the same.
 
 Mirror Core provides a number of tactics that are already proved
 sound, assuming the arguments they are applied to are also sound.  The
@@ -3047,11 +2949,11 @@ actually monomorphizations of a single tactic named
 
 \begin{lstlisting}
 Definition REFLEXIVITY_DENOTE (rtype : typ) {H: @RelDec.RelDec (typD rtype) eq}
-{H0: RelDec.RelDec_Correct H} : rtac typ (expr typ func) := 
-   fun (s : subst) (e : expr) => (
+{H0: RelDec.RelDec_Correct H} tbl : rtac typ (expr typ func) := 
+   fun tus tvs lus lvs c s e => (
 match e with
 | (App (App (Inj (inr (Other (feq _)))) l) r) =>
-  match func_defs.reflect l rtype, func_defs.reflect r rtype with
+  match func_defs.reflect tbl nil nil l rtype, func_defs.reflect tbl nil nil r rtype with
   | Some v1, Some v2 => if @RelDec.rel_dec _ eq H v1 v2 then Solved s else Fail
   | _, _ => Fail
   end
@@ -3101,11 +3003,11 @@ time. The definition of this tactic is:
 
 \begin{lstlisting}
 Definition REFLEXIVITY : rtac typ (expr typ func) :=
-fun c s e => 
+fun tus tvs n m c s e => 
   match e with 
 | (App (App (Inj (inr (Other (feq ty)))) l) r) =>
   match @exprUnify (ctx_subst c) typ func _ _ _ _ _ 3
-                                 l r ty s with
+                                 tus tvs 0 l r ty s with
     | Some su => RTac.Core.Solved su 
     | None =>  RTac.Core.Fail
   end
@@ -3510,10 +3412,10 @@ This is a complete function, meaning we can prove the following lemma:
 
 \begin{lstlisting}[numbers=left]
 Lemma get_reif_eq2 :
-forall typ i tr val,
-exprD' (typtree typ) tr = Some val ->
-exprD' (tyoption typ) (App (Inj (inr (Data (fget typ i)))) tr)  =
-exprD' (tyoption typ) (get_reif i tr typ) .
+forall typ i tr tus tvs val,
+exprD' tus tvs (typtree typ) tr = Some val ->
+exprD' tus tvs (tyoption typ) (App (Inj (inr (Data (fget typ i)))) tr)  =
+exprD' tus tvs (tyoption typ) (get_reif i tr typ) .
 \end{lstlisting}
 
 This means that if \lstinline|(tr : expr)| has a valid denotation as a
@@ -3537,10 +3439,10 @@ match (as_tree m) with
 end.
 
 Lemma get_reif_sound :
-forall typ i tr val,
+forall typ i tr tus tvs val,
 (get_reif' i tr typ) = Some val ->
-exprD' (tyoption typ) (App (Inj (inr (Data (fget typ i)))) tr)= 
-exprD' (tyoption typ) val
+exprD' tus tvs (tyoption typ) (App (Inj (inr (Data (fget typ i)))) tr)= 
+exprD' tus tvs (tyoption typ) val
 \end{lstlisting}
 
 The key difference is that the second function is partial, meaning
