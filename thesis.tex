@@ -29,7 +29,7 @@
 \title{Computation Improves Interactive Symbolic Execution}
 \abstract{
 
-As it becomes more prevalant throughout our lives, correct software is
+As it becomes more prevalent throughout our lives, correct software is
 more important than it has ever been before. Verifiable C is an
 expressive Hoare logic (higher-order impredicative concurrent
 separation logic) for proving functional correctness of C programs.
@@ -49,8 +49,29 @@ our ``mostly sound'' type system, computationally efficient finite-map
 data structures, and the MirrorCore framework for computationally
 reflected logics.  Measurements show a 40$\times$
 performance improvement.}
-%\acknowledgements{Thank you very much.}
-%\dedication{To myself.}
+
+\acknowledgements{Thank you to my adviser Andrew Appel for teaching me
+  how to be a researcher and a graduate student. I will always aspire to
+  be like Andrew as a mentor and as a leader. 
+
+  My advisers at KSU, John Hatcliff and Robby, for showing me what can
+  be done in this field, and inspiring to continue my education, as
+  well as collaborating on my early work at Princeton.
+
+  My collaborators, Jesper Bengtson and Gregory Malecha, for making
+  difficult concepts much easier and working hard to make all of our
+  research successful together.
+
+  All of the friends I made at Princeton, for making light of the
+  sillier parts of being a graduate student.
+
+  My parents, for being great parents
+
+  Kjersti and Jaxon Dodds, for always providing happiness and
+  perspective}
+
+\dedication{To Kjersti, Jaxon, Mom, Dad and Hannah. I hope you never
+  have to read this thesis}
 
 
 
@@ -216,7 +237,7 @@ the time is long enough, it can become difficult the person doing the
 proof to remember what they were working on when they last made
 progress on the proof.
 
-This thesis shows how a proof assitant implementation of a complex
+This thesis shows how a proof assistant implementation of a complex
 program logic in for proving the correctness of C programs can be made
 significantly faster without any negative impact on the proving
 experience. This results in a logic that is significantly more
@@ -405,7 +426,7 @@ rewrite the lemma, and Coq might guess wrong unless we tell it.
 If we wish to solve this goal computationally we can create a deep
 embedding, along with a denotation function for nat, addition, and
 equality
-
+\pagebreak
 \begin{lstlisting}
 Inductive expr' :=
 | num : nat -> expr
@@ -453,7 +474,7 @@ must be done using a tactic because tactics have the ability to match
 \lstinline|Prop|, while Gallina does not. The following is a
 reification of our original goal:
 
-
+\pagebreak
 \begin{lstlisting}
 a : expr
 b : expr
@@ -493,7 +514,7 @@ expr_denote (e) = expr_denote (symmetry e e1 e2)
 \end{lstlisting}
 
 Now we can rewrite by \lstinline|(symmetry_func_sound b c)| giving us:
-
+\pagebreak
 \begin{lstlisting}
 a : expr
 b : expr
@@ -618,7 +639,7 @@ of valid programs while guaranteeing certain errors won't occur.
 We have designed a typechecker specifically for efficiently and
 conveniently structuring Hoare-logic proofs. The purpose of the
 typechecker is to ensure that expressions evaluate in a completely
-computational manner. It is a Galina program that either says an
+computational manner. It is a Gallina program that either says an
 expression evaluates, or produces an assertion that will guarantee
 expression evaluation.
 
@@ -873,7 +894,7 @@ $\Delta \vdash e $, meaning that $e$ typechecks according to its
 own annotation.
 
 We define a function to typecheck expressions with respect to a type context:
-
+\pagebreak
 \begin{lstlisting}
 Fixpoint typecheck_expr ($\Delta$ : tycontext) (e: expr) : tc_assert :=
     | Econst_int _ (Tint _ _ _) => tc_TT 
@@ -1059,7 +1080,7 @@ amount of time. Separating these two allows us to do the computations
 we discuss in Chapter \ref{ch:reflection}. 
 
 A temporary variable is a (local) variable whose address is not taken
-anywhere in the procedure. A varible is taken if the C address of
+anywhere in the procedure. A variable is taken if the C address of
 (\lstinline|&|) operator is used. Unlike local and global variables, these
 variables can not alias---so we can statically determine exactly when
 their values are modified. If the typechecker sees that a temporary
@@ -1389,7 +1410,7 @@ exit from the command (break, continue, fall-through) is forbidden.
 
 The \lstinline|forward| tactic chooses a Hoare-logic inference rule to
 apply, based on the precondition and the command. It can make most of
-its decisions using only the command, but occasinally it takes the
+its decisions using only the command, but occasionally it takes the
 precondition into account as well. For example, in general,
 \lstinline|forward| uses the Floyd assignment rule that existentially
 quantifies the ``old'' value of the variable being assigned to (in
@@ -1778,7 +1799,7 @@ form.
 
 At the Verifiable C level, there is no choice but to use a semantic
 notion of substitution:
-
+\pagebreak
 \begin{lstlisting}
   Definition subst {A} (x: ident) (v: val) (P: environ -> A) : environ -> A :=
   fun $\rho$ => P (env_set $\rho$ x v).
@@ -1898,7 +1919,7 @@ so, eliminates the need for semantic substitution, replacing it with a
 more efficient and convenient computational syntactic substitution.
 
 In place of Appel's ``semicanonical form'' $\PROP$/$\LOCAL$/$\SEP$, we
-introduce a ``canonical form'', \lstinline|assertD P (localD Q1 Q2)R|
+introduce a ``canonical form'', \linebreak \lstinline|assertD P (localD Q1 Q2)R|
 .
 The \lstinline|assertD| function is a restriction on
 $\PROP$/$\LOCAL$/$\SEP$, so \lstinline|assertD| can be defined using
@@ -2016,7 +2037,7 @@ substitution (And it takes only logN time, where N is the positive
 number representing the identifier i.)
 
 The semicanonical Floyd Hoare-rule for forward assignment is:
-
+\pagebreak
 \begin{lstlisting}
   ...
   @semax Espec Delta (PROPx P (LOCALx Q (SEPx R))) (Sset id e) 
@@ -2313,7 +2334,7 @@ representing any Coq term that is not dependently typed:
 
 The \lstinline|expr| type is essentially a lambda calculus where we
 can inject reified types (using the \lstinline|typ| parameter, and
-functions (using the \lstinlin|func| parameter). For a thorough
+functions (using the \lstinline|func| parameter). For a thorough
 discussion of this \lstinline|expr|, along with its denotation
 function, see \cite[section~3.1]{malecha:thesis}
 
@@ -2357,7 +2378,7 @@ will need another constructor to allow the extensible part
 (\lstinline|fS|) to fit into the framework's language. In Mirror Core
 this constructor is called \lstinline|Inj| (injection). We also need a
 reified constructor for function application \lstinline|App|. We will
-discuss mirror core's reified syntax more later in the section
+discuss Mirror Core's reified syntax more later in the section
 We reify $3$ as
 
 \begin{lstlisting}
@@ -2431,7 +2452,7 @@ cancellers. As of now, they are simply used as more constructors, but
 in future work (discussed in Section \ref{sec:future}), they will be
 able to easily plug into decision procedures written by others.
 Finally, \lstinline|func'| is our syntax definition. We show the
-definintion of \lstinline|func'| from the bottom of the tree up, as
+definition of \lstinline|func'| from the bottom of the tree up, as
 it is defined in Coq.
 
 \begin{lstlisting}
@@ -2449,6 +2470,7 @@ Inductive eval := (* C light expression evaluation *)
 | feval_binop : binary_operation -> type -> type -> eval
 | feval_unop : unary_operation -> type -> eval
 | feval_id : ident -> eval.
+
 
 Inductive other := 
 | feq : typ -> other
@@ -2550,6 +2572,9 @@ match o with
 | fnone t => @None (typD t)
 | ...
 end.
+
+
+
 
 Definition evalD  (e : eval) : typD  (typeof_eval e) :=
 match e with
@@ -2831,7 +2856,7 @@ Fixpoint reptype (ty: type) : Type :=
 \end{lstlisting}
 
 Then we say the reified type of the \lstinline|data_at| function is:
-
+\pagebreak
 \begin{lstlisting}
 Definition typeof_sep (s : sep) : typ :=
 match s with
@@ -2869,7 +2894,7 @@ use in some other projects with more difficult dependent types.
 
 Once we have the ability to move from \lstinline|Prop| to reified
 syntax (by reification) and back (by reflection, or unfolding the
-denotation function), the next step is to create Galina functions that
+denotation function), the next step is to create Gallina functions that
 operate over the reified terms we can create. These functions can then
 be proved sound with respect to Coq's logic, enabling a single Ltac to
 encapsulate all of the reflective behavior.
@@ -2887,6 +2912,7 @@ proof state into a reified result. This result can be one of three things:
   and the goal should not be changed, and
 \item \lstinline|More e'| means that the tactic made progress but
   didn't solve the goal. The new goal should be \lstinline|e'|.
+\end{enumerate}
 
 To be used as a tactic, these programs from expressions to results
 must be proved sound with respect to the Coq implication. That is, for
@@ -2960,7 +2986,7 @@ Axiom semax_skip:
 
  Other lemmas are more
 complicated. For example the assignment lemma that we reify is:
-
+\pagebreak
 \begin{lstlisting}[numbers=left]
 Lemma semax_set_localD:
   forall temp var ret gt 
@@ -3002,7 +3028,7 @@ To apply the reified lemma automatically, first the conclusion of the
 the subgoals that remain from the application. That means we must
 create Mirror Core tactics that can solve each of the goals that will
 arise. The Mirror Core tactic application is:
-
+\pagebreak
 \begin{lstlisting}
 Definition FORWARD_SET 
 ...
@@ -3044,7 +3070,7 @@ problem.
 \lstinline|REFLEXIVITY_OP_CTYPE| and \lstinline|REFLEXIVITY_BOOL| are
 actually monomorphizations of a single tactic named
 \lstinline|REFLEXIVITY_DENOTE|:
-
+\pagebreak
 \begin{lstlisting}
 Definition REFLEXIVITY_DENOTE (rtype : typ) {H: @RelDec.RelDec (typD rtype) eq}
 {H0: RelDec.RelDec_Correct H} : rtac typ (expr typ func) := 
@@ -3129,7 +3155,7 @@ Once we have defined the equivalent of \lstinline|FORWARD_SET| for
 each statement we are interested in stepping through, we can combine
 them in a single tactic we first present an idealized tactic (for
 clarity, some details are removed that improve the performance):
-
+\pagebreak
 \begin{lstlisting}
 Definition SYMEXE_STEP Struct_env
 : rtac typ (expr typ func)  :=
@@ -3435,7 +3461,7 @@ difficult because of the size of the definition of the reified syntax
 \ref{sec:reification}). 
 
 For example if we have a tree that consists of just a leaf of type val
-\lstinline|@leaf val|, the equivalent reifiedf tree would be
+\lstinline|@leaf val|, the equivalent reified tree would be
 \lstinline|Inj (inr (Data (fleaf val)))|. It is inconvenient to write
 this large match expression every time we want to match a tree with
 leaf. Instead we can define \lstinline|as_tree|.
@@ -3507,7 +3533,7 @@ end.
 \end{lstlisting}
 
 This is a complete function, meaning we can prove the following lemma:
-
+\pagebreak
 \begin{lstlisting}[numbers=left]
 Lemma get_reif_eq2 :
 forall typ i tr val,
@@ -4123,7 +4149,7 @@ bound on the performance increase to be observed in general.
 Program verification using forward Hoare-logic (or separation logic)
 rules intersperses the application of Hoare rules with entailment
 solving. Entailments can arise from interfaces between user-written
-adn machine-generated assertions, as well as from side conditions from
+and machine-generated assertions, as well as from side conditions from
 the application of some of the Hoare-logic rules.
 
 This thesis has focused on symbolic execution via the application of
